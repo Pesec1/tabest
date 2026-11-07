@@ -1,0 +1,70 @@
+// Narrow contracts for the Firefox APIs this extension uses. Keep this surface
+// aligned with MDN WebExtensions.
+declare namespace browser {
+  namespace tabs {
+    interface Tab {
+      id?: number;
+      windowId: number;
+      url?: string;
+      pendingUrl?: string;
+      title?: string;
+      active: boolean;
+      pinned: boolean;
+      incognito: boolean;
+      lastAccessed?: number;
+      audible?: boolean;
+      mutedInfo?: { muted: boolean };
+      discarded?: boolean;
+      hidden?: boolean;
+      cookieStoreId?: string;
+      openerTabId?: number;
+      index?: number;
+    }
+    function get(id: number): Promise<Tab>;
+    function getCurrent(): Promise<Tab | undefined>;
+    function query(query: { windowId?: number; active?: boolean }): Promise<Tab[]>;
+    function create(options: { windowId?: number; url?: string; active?: boolean; openerTabId?: number; index?: number }): Promise<Tab>;
+    function update(id: number, changes: { active?: boolean; pinned?: boolean; openerTabId?: number }): Promise<Tab>;
+    function remove(id: number): Promise<void>;
+    function captureTab(id: number, options: { format: 'jpeg'; quality: number; scale: number }): Promise<string>;
+    const onActivated: BrowserEvent<(info: { tabId: number; windowId: number }) => void>;
+    const onRemoved: BrowserEvent<(tabId: number) => void>;
+    const onUpdated: BrowserEvent<(tabId: number, changes: { url?: string; status?: string; discarded?: boolean }) => void>;
+    const onCreated: BrowserEvent<() => void>;
+    const onAttached: BrowserEvent<() => void>;
+    const onDetached: BrowserEvent<() => void>;
+  }
+  namespace windows {
+    interface Window { id?: number; incognito: boolean }
+    function get(id: number): Promise<Window>;
+    function getLastFocused(): Promise<Window>;
+    function update(id: number, changes: { focused: boolean }): Promise<Window>;
+  }
+  namespace storage {
+    interface Area {
+      get(key: string): Promise<Record<string, unknown>>;
+      set(values: Record<string, unknown>): Promise<void>;
+    }
+    const local: Area;
+    const session: Area;
+    const onChanged: BrowserEvent<(changes: Record<string, { newValue?: unknown }>, area: string) => void>;
+  }
+  namespace runtime {
+    const id: string;
+    function getURL(path: string): string;
+    function sendMessage(message: unknown): Promise<unknown>;
+    const onMessage: BrowserEvent<(message: any, sender: { tab?: tabs.Tab; url?: string; id?: string }) => void | Promise<unknown>>;
+  }
+  namespace commands {
+    function openShortcutSettings(): Promise<void>;
+    const onCommand: BrowserEvent<(command: string, tab?: tabs.Tab) => void>;
+  }
+  namespace permissions {
+    function contains(permissions: { origins: string[] }): Promise<boolean>;
+    const onRemoved: BrowserEvent<() => void>;
+  }
+  namespace action {
+    const onClicked: BrowserEvent<(tab: tabs.Tab) => void>;
+  }
+}
+interface BrowserEvent<T> { addListener(listener: T): void }

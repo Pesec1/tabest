@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Tabest — Fuzzy Tab Finder",
+  "version": "0.2.4",
+  "description": "Find, preview, and switch browser tabs with fuzzy search and customizable Vim-style keyboard navigation.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "scripts": ["background.js"], "type": "module" },
+  "action": { "default_title": "Open Tabest", "default_icon": "icon.svg" },
+  "icons": { "48": "icon.svg", "96": "icon.svg" },
+  "commands": {
+    "toggle-picker": {
+      "suggested_key": { "default": "Ctrl+Shift+Space" },
+      "description": "Open Tabest or close the picker"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "telescope-browser@local.invalid",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": { "required": ["none"] }
+    }
+  }
+}

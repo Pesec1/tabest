@@ -1,0 +1,24 @@
+{
+  "name": "tabest",
+  "version": "0.2.4",
+  "description": "A keyboard-first tab finder with fuzzy search, Vim-style navigation, and local page previews.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "preview": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "test": "node --test --test-isolation=none tests/*.test.ts",
+    "test:zen": "npm run build && node scripts/zen-smoke.mjs",
+    "test:zen:deletion": "npm run build && node scripts/zen-smoke.mjs --deletion",
+    "test:zen:filters": "npm run build && node scripts/zen-smoke.mjs --filters",
+    "lint:extension": "npx --yes web-ext lint --source-dir dist",
+    "start": "npx --yes web-ext run --source-dir dist",
+    "package": "npm run build && npx --yes web-ext build --source-dir dist --artifacts-dir artifacts --overwrite-dest"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "vite": "8.0.16"
+  }
+}

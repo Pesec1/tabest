@@ -1,14 +1,23 @@
 # Tabest — Fuzzy Tab Finder
 
+<p align="center">
+  <a href="docs/store-assets/README.md">
+    <img src="docs/store-assets/tabest-icon-animated.gif" width="88" height="88" alt="Tabest terminal icon with a blinking cursor">
+  </a>
+</p>
+
 **Find your tabs. Keep your flow.**
 
 A Telescope-inspired tab finder for Firefox and Zen, with fuzzy search,
 Vim-style navigation, and page previews. Open a dedicated search tab, type a few
 letters, and switch to the page you need without reaching for the mouse.
 
-**Pre-release:** the current development version is **0.2.4**. There is no public
-installation link for this project yet; repository creation and store submission
-are deferred.
+[Screenshots](#see-it-in-action) · [Quick start](#quick-start) ·
+[Keybindings](#default-keys) · [Privacy](PRIVACY.md) · [MIT license](LICENSE)
+
+**Release status:** version **0.2.4** has been submitted to Firefox Add-ons and is
+awaiting review, as reported by the maintainer. A public installation link will
+be added after publication. Until then, use the development installation below.
 
 ## What you can do
 
@@ -23,6 +32,26 @@ are deferred.
 Tabs are ranked by match quality and recency. Pinned tabs do not receive a hidden
 ranking boost: use the Pinned filter when you want to search only among them.
 No account, analytics, remote search service, or cloud backend is used.
+
+## See it in action
+
+### Find a tab before you leave your current one
+
+Search titles and URLs, see matching text highlighted, and inspect an available
+page snapshot before switching.
+
+[![Tabest search with a highlighted title match, tab details, and a captured page preview](docs/store-assets/screenshots/01-fuzzy-search.png)](docs/store-assets/screenshots/01-fuzzy-search.png)
+
+### Keep pinned tabs within reach
+
+Press **Escape** for Normal mode, **l** to show pinned tabs, and **Tab** to mark
+results. The active row and marked tabs have distinct visual states.
+
+[![Tabest in Normal mode with the Pinned filter active and two tabs marked](docs/store-assets/screenshots/02-pinned-and-marks.png)](docs/store-assets/screenshots/02-pinned-and-marks.png)
+
+These are actual extension screenshots captured in an isolated Zen instance at
+1280 × 800, using synthetic local pages rather than personal browsing data.
+The animated icon above is a branding animation, not a recording of the workflow.
 
 ## Quick start
 
@@ -111,13 +140,29 @@ shared rules under [.agents/](.agents/AGENTS.md).
 
 - [Changelog](CHANGELOG.md)
 - [GitHub profile copy](docs/github-description.md)
-- [Firefox Add-ons listing draft](docs/amo-listing.md)
+- [Firefox Add-ons listing copy](docs/amo-listing.md)
 - [Reviewer notes](docs/reviewer-notes.md)
 - [Release checklist](docs/release-checklist.md)
+- [Screenshots, icons, and asset reproduction instructions](docs/store-assets/README.md)
+
+<details>
+<summary>Brand artwork and image downloads</summary>
+
+[![Tabest promotional illustration: browser tabs converging toward a selected tab](docs/store-assets/tabest-promo.png)](docs/store-assets/tabest-promo.png)
+
+Promotional artwork generated with AI; not a screenshot of the interface.
+
+[PNG icon, 128 × 128](docs/store-assets/tabest-icon-128.png) ·
+[PNG icon, 1024 × 1024](docs/store-assets/tabest-icon-1024.png) ·
+[Animated GIF icon](docs/store-assets/tabest-icon-animated.gif) ·
+[Promotional image](docs/store-assets/tabest-promo.png)
+
+</details>
 
 Inspired by the interaction model of Telescope for Neovim. Not an official
 Telescope, Neovim, Mozilla, or Zen project. The public name is
-**Tabest — Fuzzy Tab Finder**. No store URL or repository URL has been reserved.
+**Tabest — Fuzzy Tab Finder**. The store link will be added when the release is
+public; no placeholder installation or support URLs are used.
 
 The existing add-on ID and legacy local preference keys are intentionally retained
 so renaming the product does not reset an existing installation's settings.

@@ -1,10 +1,11 @@
-# Firefox Add-ons Listing Draft
+# Firefox Add-ons Listing Copy
 
-**Not submitted.** Public title: **Tabest — Fuzzy Tab Finder**.
+**Submission reported by the maintainer; awaiting review.** Public title:
+**Tabest — Fuzzy Tab Finder**. This document preserves reusable listing copy;
+the live submission and its fields have not been independently inspected.
 The name is confirmed by the project owner. An indexed-web search did not reveal
 an exact same-name browser extension, but this is not a trademark clearance or
-a reservation. Confirm an available AMO slug when submitting. Publication is
-currently deferred; no store or repository URL has been invented.
+a reservation. No public store or repository URL has been invented here.
 
 ## English name
 
@@ -99,7 +100,20 @@ permission, warranty, and liability notices. No personal author name has been se
 - Final available AMO slug, publisher name, and public support contact.
 - Actual repository/support URL and a public URL or pasted text for the privacy notice.
 - Desktop compatibility/platform choices based on actual release testing.
-- Screenshots, icon assets, release version, and version-specific release notes.
+- Confirm the submitted release version and version-specific release notes.
+
+## Listing images
+
+- Icon: [PNG, 128 × 128](store-assets/tabest-icon-128.png).
+- First screenshot: [search and preview](store-assets/screenshots/01-fuzzy-search.png).
+  Caption: “Search titles and URLs, then preview a tab before switching.”
+- Second screenshot: [pinned tabs and selection](store-assets/screenshots/02-pinned-and-marks.png).
+  Caption: “Filter pinned tabs and mark multiple tabs with Vim-style keyboard controls.”
+
+Both screenshots are real 1280 × 800 captures in isolated Zen with synthetic local
+pages. Use the static PNG for the listing icon, not the animated GIF. The
+AI-generated promotional image is supplementary artwork, not a UI screenshot.
+See the [asset guide](store-assets/README.md) for all files and reproduction steps.
 
 Suggested category: Tabs, if available in the submission form. Do not claim an
 Android release or verified Windows/macOS support without testing.

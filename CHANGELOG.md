@@ -3,6 +3,14 @@
 This is a development changelog, not a claim that these versions are published
 on Firefox Add-ons. The current package version is **0.2.4**.
 
+## Unreleased — Documentation and presentation
+
+- Embedded the animated brand icon and two real UI screenshots in the README.
+- Added downloadable artwork and icon links, with AI artwork distinguished from
+  actual extension screenshots and the icon GIF distinguished from a UI recording.
+- Updated listing assets, GitHub copy, and publication notes to reflect the
+  maintainer-reported GitHub push and AMO submission awaiting review.
+
 ## 0.2.4 — Development snapshot
 
 ### Branding and licensing
@@ -15,8 +23,9 @@ on Firefox Add-ons. The current package version is **0.2.4**.
   console handle is now `tabestTrace`, with the previous handle retained as an alias.
 - Prepared project overview, privacy notice, build instructions, contribution
   guidance, listing copy, reviewer notes, and a release checklist.
-- Public repository creation, author/contact details, presentation assets, CI,
-  and store submission are deferred at the owner's request.
+- At the time of this development snapshot, repository creation, presentation
+  assets, and store submission were deferred; see Unreleased for later updates.
+  Author/contact metadata and CI are not supplied by these documentation updates.
 
 ## 0.2.3 — Development snapshot
 

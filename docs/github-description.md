@@ -1,13 +1,13 @@
 # GitHub Repository Copy
 
-Prepared metadata, not an existing repository or a reserved name. Repository
-creation and owner selection are deferred at the user's request.
+Suggested metadata for the repository. The maintainer reports that the project
+has been pushed to GitHub; its URL has not been supplied in these documents.
 
 ## Suggested repository name
 
 `tabest`
 
-Availability under the owner's account must be checked before creation.
+Use the actual repository name if it differs.
 
 ## Display name
 
@@ -30,15 +30,22 @@ Find your tabs. Keep your flow.
 
 Leave the website field empty until this project's AMO listing or project site
 exists. Do not substitute another extension's listing for this project's URL.
-After creating the repository, use its real Issues page for public support and
+Use the repository's real Issues page for public support and
 add the real URL to the README and Firefox Add-ons submission.
 
-## Presentation assets to create
+## Ready-to-use presentation assets
 
-- Main screenshot with synthetic tab titles and URLs.
-- Short demonstration: open, type a partial title, navigate, switch tabs.
-- Second screenshot showing Normal mode and the Pinned filter.
-- Social preview image using the final name and the project's own artwork.
+- [Search and real page preview](store-assets/screenshots/01-fuzzy-search.png).
+- [Normal mode, Pinned filter, and marked tabs](store-assets/screenshots/02-pinned-and-marks.png).
+- [Static listing icon](store-assets/tabest-icon-128.png).
+- [Animated brand icon](store-assets/tabest-icon-animated.gif), not a workflow recording.
+- [Promotional illustration](store-assets/tabest-promo.png), AI-generated artwork,
+  not a screenshot or a specifically sized GitHub social-preview export.
+
+The root README embeds the GIF and screenshots using repository-relative paths.
+Include the referenced files when publishing README changes. See the
+[asset guide](store-assets/README.md) for captions, limitations, and reproduction.
+A workflow video/GIF has not been recorded yet.
 
 License: **MIT**, with the text in the root `LICENSE` file. No personal author name
 or remote repository metadata has been invented. Do not add installation or CI

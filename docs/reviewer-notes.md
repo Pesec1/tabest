@@ -5,7 +5,8 @@ actual submitted version and final identity before sending.
 
 ## Purpose and account requirements
 
-Tabest — Fuzzy Tab Finder is a keyboard-driven picker for existing browser tabs.
+Tabest — Fuzzy Tab Finder is a keyboard-driven picker for existing browser tabs
+and optional suggestions from locally stored browsing history.
 It opens a dedicated local extension page rather than injecting UI into websites.
 No account, login, subscription, external API, or test credentials are required.
 The manifest names it Tabest — Fuzzy Tab Finder and retains the original technical
@@ -30,7 +31,14 @@ Node 26.2.0, and npm 11.16.0; it is not yet a certified cross-platform release b
 ## Permission rationale and data
 
 - `tabs` is used for metadata and tab-management operations.
+- `search` submits only explicit launchQuery actions through the browser's default
+  engine. Typing remains local; HTTP(S) address opening and native search create
+  a tab in the caller's window. No provider is hardcoded.
 - `storage.local` keeps preferences; `storage.session` keeps tab IDs and recency.
+- Optional `history` is requested from the Suggest visited sites checkbox in
+  Settings. Reads require opt-in plus permission, use the browser's index, and
+  are disabled in private windows. Suggested URLs are opened only on selection;
+  history records are not persisted in extension storage or uploaded.
 - `<all_urls>` supports `tabs.captureTab()` for previewing a selected result without
   activating it. Capture is debounced and images use a bounded in-memory cache.
 
@@ -58,6 +66,15 @@ Use a disposable profile and synthetic pages, not a real browsing session.
 8. Change appearance and a picker binding in Settings; verify persistence.
 9. If private-window access is enabled, check that normal and private results and
    previews do not cross contexts. Test this explicitly before claiming verification.
+10. Enable Suggest visited sites, approve the optional permission, and save.
+    Search a title or address from synthetic browsing history with fewer than five
+    open-tab matches. Check the From history section, keyboard opening, disabled
+    tab-management actions on its rows, and disappearance after history deletion
+    or permission revocation. Private windows must never show history suggestions.
+11. Type an HTTP(S) address or search phrase and use Alt+Enter or the action button.
+    Verify a new tab opens in the same window, the default browser engine is used
+    for text, and ordinary Enter still selects existing results. Check the action
+    in both modes, empty results, and with a custom binding.
 
 ## Evidence to attach to the actual submission
 

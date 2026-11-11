@@ -68,7 +68,7 @@ test('legacy saved keymaps gain filter bindings without overwriting custom keys 
 });
 test('versioned maps may omit filter bindings or assign them elsewhere', () => {
   const keymap = { insert: {}, normal: { x: 'pinnedTabs' as const } };
-  assert.deepEqual(readSettings({ keymapVersion: 2, keymap }).keymap, keymap);
+  assert.deepEqual(readSettings({ keymapVersion: 3, keymap }).keymap, keymap);
   assert.equal(readSettings({ keymap }).keymap.normal.l, undefined);
   assert.equal(validateKeymap(keymap), true);
 });
@@ -78,10 +78,33 @@ test('view preferences default safely and preserve existing custom settings', ()
   const settings = readSettings(legacy);
   assert.equal(settings.layout, 'compact');
   assert.equal(settings.showPreview, true);
-  assert.deepEqual(settings.keymap, legacy.keymap);
+  assert.equal(settings.historySuggestions, false);
+  assert.equal(readSettings({ ...legacy, historySuggestions: true }).historySuggestions, true);
+  assert.equal(readSettings({ ...legacy, historySuggestions: 'true' }).historySuggestions, false);
+  assert.equal(settings.keymap.normal.x, 'close');
+  assert.equal(settings.keymap.insert['Alt+Enter'], 'launchQuery');
+  assert.deepEqual(legacy.keymap, { insert: {}, normal: { x: 'close' } });
   assert.equal(settings.theme, 'light');
   assert.equal(settings.scope, 'window');
   assert.equal(readSettings({ ...legacy, layout: 'comfortable', showPreview: false }).layout, 'comfortable');
   assert.equal(readSettings({ ...legacy, showPreview: false }).showPreview, false);
   assert.equal(readSettings({ layout: 'invalid', showPreview: 'invalid' }).showPreview, true);
+});
+
+test('Alt+Enter launches query in either mode while Enter keeps accepting results', () => {
+  for (const mode of ['insert', 'normal'] as const) {
+    const resolver = new KeyResolver();
+    assert.equal(resolver.resolve('Alt+Enter', mode, defaultKeymap).action, 'launchQuery');
+    assert.equal(resolver.resolve('Enter', mode, defaultKeymap).action, 'accept');
+  }
+});
+
+test('query binding migration respects custom keys, sequences, alternative bindings and deliberate removal', () => {
+  const keymap = { insert: { 'Alt+Enter': 'help' }, normal: { 'Alt+Enterx': 'last' } };
+  const upgraded = readSettings({ keymapVersion: 2, keymap });
+  assert.deepEqual(upgraded.keymap, keymap);
+  assert.equal(upgraded.keymap.normal.h, undefined, 'Version 2 filter omissions must remain intentional');
+  const alternate = { insert: { 'Ctrl+o': 'launchQuery' }, normal: {} };
+  assert.equal(readSettings({ keymapVersion: 2, keymap: alternate }).keymap.insert['Alt+Enter'], undefined);
+  assert.deepEqual(readSettings({ keymapVersion: 3, keymap: { insert: {}, normal: {} } }).keymap, { insert: {}, normal: {} });
 });

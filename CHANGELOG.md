@@ -5,6 +5,29 @@ on Firefox Add-ons. The current package version is **0.2.4**.
 
 ## Unreleased
 
+### Open a typed address or web search
+
+- Add the local `launchQuery` action, suggested Alt+Enter in Insert and Normal,
+  with a visible Open/Search action under the input and unchanged Enter selection.
+- Open typed HTTP(S) addresses or submit text through the browser's default
+  search engine into a new tab in the calling window; add the `search` permission.
+- Migrate keymaps to version 3 without overwriting custom bindings/sequences;
+  support deliberate omission, empty-input no-op, and explicit invalid-URL feedback.
+- Add parser/launcher/migration tests and isolated Zen checks using real native
+  Alt+Enter and a synthetic browser-default engine.
+
+### Visited-page suggestions
+
+- Add opt-in local history suggestions below open tabs when fewer than five tabs
+  match a nonempty query in All tabs. Request the optional history permission from
+  Settings; exclude private windows and the demo.
+- Use the browser's history index after a 40 ms typing pause, rank up to 100
+  candidates by relevance/frequency/recency, exclude open pages, and show at most five.
+- Preserve keyboard selection as suggestions arrive; Enter opens the page or
+  selects a tab opened in the meantime. Tab-management commands ignore history rows.
+- Invalidate stale queries, deleted history and revoked permissions without storing
+  a persistent history index; add unit and isolated Zen coverage.
+
 ### Picker usability
 
 - Default to a compact layout with the search near the top and denser result rows;

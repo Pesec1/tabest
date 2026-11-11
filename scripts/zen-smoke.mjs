@@ -9,6 +9,8 @@ import { setTimeout as wait } from 'node:timers/promises';
 const deletion = process.argv.includes('--deletion');
 const filters = process.argv.includes('--filters');
 const ui = process.argv.includes('--ui');
+const suggestions = process.argv.includes('--suggestions');
+const query = process.argv.includes('--query');
 const installedBinary = realpathSync(process.argv.slice(2).find(arg => !arg.startsWith('--')) ?? process.env.TABEST_ZEN_BINARY ?? process.env.TELESCOPE_ZEN_BINARY ?? '/opt/zen-browser-bin/zen');
 const temporary = mkdtempSync(join(tmpdir(), 'tabest-zen-test-'));
 const installation = join(temporary, 'browser');
@@ -42,9 +44,11 @@ writeFileSync(join(addonPath, 'filter-probe.js'), readFileSync(new URL('./zen-fi
   .replace('__TABEST_FILTER_URL__', JSON.stringify(previewUrl)));
 writeFileSync(join(addonPath, 'ui-probe.js'), readFileSync(new URL('./zen-ui-probe.js', import.meta.url), 'utf8')
   .replace('__TABEST_UI_URL__', JSON.stringify(previewUrl)));
-writeFileSync(pickerPath, readFileSync(pickerPath, 'utf8').replace('</body>', `<script type="module" src="./${ui ? 'ui' : filters ? 'filter' : deletion ? 'delete' : 'preview'}-probe.js"></script></body>`));
-const options = { addonPath, resultPath, previewUrl, fixtures, ui };
-const harness = readFileSync(new URL(filters || ui ? './zen-filter-harness.js' : deletion ? './zen-delete-harness.js' : './zen-harness.js', import.meta.url), 'utf8')
+writeFileSync(join(addonPath, 'suggestions-probe.js'), readFileSync(new URL('./zen-suggestions-probe.js', import.meta.url), 'utf8'));
+writeFileSync(join(addonPath, 'query-probe.js'), readFileSync(new URL('./zen-query-probe.js', import.meta.url), 'utf8'));
+writeFileSync(pickerPath, readFileSync(pickerPath, 'utf8').replace('</body>', `<script type="module" src="./${query ? 'query' : suggestions ? 'suggestions' : ui ? 'ui' : filters ? 'filter' : deletion ? 'delete' : 'preview'}-probe.js"></script></body>`));
+const options = { addonPath, resultPath, previewUrl, fixtures, ui, suggestions, query };
+const harness = readFileSync(new URL(filters || ui || suggestions || query ? './zen-filter-harness.js' : deletion ? './zen-delete-harness.js' : './zen-harness.js', import.meta.url), 'utf8')
   .replace('__TABEST_TEST_OPTIONS__', JSON.stringify(options));
 writeFileSync(join(installation, 'config.js'), harness);
 const child = spawn(join(installation, 'zen'), ['--headless', '--no-remote', '--profile', profile, 'about:blank'], {
@@ -67,7 +71,7 @@ try {
     await wait(100);
   }
   if (!report?.done || !report.passed) throw new Error(report?.error ?? 'Zen integration check timed out');
-  console.log(ui ? 'PASS: compact layout, preview toggle, browser favicons, contextual/custom keyboard hints and view persistence.' : filters ? 'PASS: pinned filter keyboard/mouse controls, selection/query preservation, safe marks, persistence, unpinning and responsive layout.' : deletion ? 'PASS: deletion through the UI stays deleted after selection, reopening and creating a fresh picker.' : `PASS: real screenshot and fallbacks fit without scrolling at three sizes; 20 native Ctrl+Shift+Space presses, focus restoration and duplicate cleanup.`);
+  console.log(query ? 'PASS: native Alt+Enter address opening and browser-default search, Enter preservation, Normal mode, click, custom keys and narrow layout.' : suggestions ? 'PASS: real history suggestions, permission denial/grant/revocation, ranking, stable selection, threshold, keyboard opening, deletion and narrow layout.' : ui ? 'PASS: compact layout, preview toggle, browser favicons, contextual/custom keyboard hints and view persistence.' : filters ? 'PASS: pinned filter keyboard/mouse controls, selection/query preservation, safe marks, persistence, unpinning and responsive layout.' : deletion ? 'PASS: deletion through the UI stays deleted after selection, reopening and creating a fresh picker.' : `PASS: real screenshot and fallbacks fit without scrolling at three sizes; 20 native Ctrl+Shift+Space presses, focus restoration and duplicate cleanup.`);
   console.log(`Report: ${resultPath}`);
 } catch (error) {
   console.error(error.message);

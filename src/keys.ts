@@ -5,21 +5,23 @@ export const defaultKeymap: Keymap = {
     'Ctrl+n': 'next', 'Ctrl+j': 'next', ArrowDown: 'next',
     'Ctrl+p': 'previous', 'Ctrl+k': 'previous', ArrowUp: 'previous',
     Enter: 'accept', Escape: 'normal', 'Ctrl+c': 'cancel',
+    'Alt+Enter': 'launchQuery',
     Tab: 'markNext', 'Shift+Tab': 'markPrevious', 'Ctrl+/': 'help',
   },
   normal: {
     j: 'next', k: 'previous', ArrowDown: 'next', ArrowUp: 'previous',
     Enter: 'accept', Escape: 'cancel', 'Ctrl+c': 'cancel', i: 'insert', '/': 'insert',
+    'Alt+Enter': 'launchQuery',
     gg: 'first', G: 'last', Home: 'first', End: 'last',
     Tab: 'markNext', 'Shift+Tab': 'markPrevious', dd: 'close',
     '?': 'help', w: 'scope', p: 'pin', h: 'allTabs', l: 'pinnedTabs',
   },
 };
 
-export const defaultSettings: Settings = { keymapVersion: 2, scope: 'all', theme: 'dark', layout: 'compact', showPreview: true, keymap: defaultKeymap };
+export const defaultSettings: Settings = { keymapVersion: 3, scope: 'all', theme: 'dark', layout: 'compact', showPreview: true, historySuggestions: false, keymap: defaultKeymap };
 const actions = new Set<Action>([
   'next', 'previous', 'accept', 'cancel', 'normal', 'insert', 'first', 'last',
-  'markNext', 'markPrevious', 'close', 'help', 'scope', 'pin', 'allTabs', 'pinnedTabs',
+  'markNext', 'markPrevious', 'close', 'help', 'scope', 'pin', 'allTabs', 'pinnedTabs', 'launchQuery',
 ]);
 
 export function validateKeymap(value: unknown): value is Keymap {
@@ -35,20 +37,29 @@ export function validateKeymap(value: unknown): value is Keymap {
 export function readSettings(value: unknown): Settings {
   const settings = value as Partial<Settings> | undefined;
   const keymap = structuredClone(validateKeymap(settings?.keymap) ? settings.keymap : defaultKeymap);
+  const version = (value as { keymapVersion?: number } | undefined)?.keymapVersion ?? 0;
   // Upgrade older saved maps without replacing custom bindings or sequences.
   // Versioned maps may deliberately omit the new actions.
-  if (settings?.keymapVersion !== 2) {
+  if (version < 2) {
     for (const [key, action] of [['h', 'allTabs'], ['l', 'pinnedTabs']] as const) {
       if (!Object.keys(keymap.normal).some(binding => binding.startsWith(key) || key.startsWith(binding)) &&
         !Object.values(keymap.normal).includes(action)) keymap.normal[key] = action;
     }
   }
+  if (version < 3) {
+    for (const mode of ['insert', 'normal'] as const) {
+      const key = 'Alt+Enter';
+      if (!Object.keys(keymap[mode]).some(binding => binding.startsWith(key) || key.startsWith(binding)) &&
+        !Object.values(keymap[mode]).includes('launchQuery')) keymap[mode][key] = 'launchQuery';
+    }
+  }
   return {
-    keymapVersion: 2,
+    keymapVersion: 3,
     scope: settings?.scope === 'window' ? 'window' : 'all',
     theme: ['dark', 'light', 'system'].includes(settings?.theme ?? '') ? settings!.theme! : 'dark',
     layout: settings?.layout === 'comfortable' ? 'comfortable' : 'compact',
     showPreview: settings?.showPreview !== false,
+    historySuggestions: settings?.historySuggestions === true,
     keymap,
   };
 }

@@ -1,9 +1,13 @@
 import { TabController } from './controller.ts';
 import type { Reply, Request } from './model.ts';
 import { TabPreviews } from './previews.ts';
+import { HistorySuggestions } from './history-suggestions.ts';
+import { QueryLauncher } from './query-launcher.ts';
 
 const controller = new TabController(browser);
 const previews = new TabPreviews(browser, tab => controller.isPicker(tab) || controller.isClosing(tab.id));
+const history = new HistorySuggestions(browser);
+const launcher = new QueryLauncher(browser);
 // One queue covers initialization and browser events, including rapid hotkey presses.
 let queue: Promise<unknown> = controller.initialize().catch(error => { console.error('Tabest initialization:', error); });
 function enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -29,6 +33,7 @@ browser.tabs.onActivated.addListener(({ tabId }) => {
   void enqueue(async () => { await controller.activated(tabId); notify(); });
 });
 browser.tabs.onRemoved.addListener(tabId => {
+  history.forget(tabId);
   // Signal completion immediately, outside the queue: the close operation
   // may currently be waiting for this very event before it releases the queue.
   controller.observeRemoval(tabId);
@@ -46,7 +51,20 @@ browser.tabs.onUpdated.addListener((tabId, changes) => {
 browser.tabs.onCreated.addListener(() => notify());
 browser.tabs.onAttached.addListener(() => notify());
 browser.tabs.onDetached.addListener(() => notify());
-browser.permissions.onRemoved.addListener(() => { previews.clear(); notifyPreview(); });
+function clearHistory(): void {
+  history.clear();
+  void browser.runtime.sendMessage({ type: 'history-changed' }).catch(() => {});
+}
+let historyListening = false;
+function listenHistory(): void {
+  if (historyListening || typeof browser.history === 'undefined') return;
+  browser.history.onVisitRemoved.addListener(clearHistory);
+  historyListening = true;
+}
+listenHistory();
+browser.permissions.onAdded.addListener(() => { listenHistory(); clearHistory(); });
+browser.permissions.onRemoved.addListener(() => { historyListening = false; previews.clear(); notifyPreview(); clearHistory(); });
+browser.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.settings) clearHistory(); });
 browser.runtime.onMessage.addListener((message: unknown, sender) => {
   if (sender.id !== browser.runtime.id || sender.url?.split(/[?#]/)[0] !== browser.runtime.getURL('picker.html')) return;
   const handle = async (): Promise<Reply> => {
@@ -61,6 +79,17 @@ browser.runtime.onMessage.addListener((message: unknown, sender) => {
       if (message.type === 'preview' && 'id' in message && typeof message.id === 'number') {
         return { ok: true, preview: await previews.get(message.id, tab.windowId) };
       }
+      if (message.type === 'history' && 'query' in message && typeof message.query === 'string') {
+        return { ok: true, suggestions: await history.search(message.query, tab) };
+      }
+      if (message.type === 'open-history' && 'url' in message && typeof message.url === 'string') {
+        const url = await history.resolve(message.url, tab);
+        return { ok: true, snapshot: await controller.openHistory(url, tab) };
+      }
+      if (message.type === 'launch-query' && 'query' in message && typeof message.query === 'string') {
+        await launcher.launch(message.query, tab);
+        return { ok: true };
+      }
       if (message.type === 'close' && 'ids' in message && Array.isArray(message.ids)) {
         for (const id of message.ids) if (typeof id === 'number') previews.invalidate(id);
       }
@@ -70,7 +99,7 @@ browser.runtime.onMessage.addListener((message: unknown, sender) => {
       return { ok: false, error: error instanceof Error ? error.message : 'The action failed.' };
     }
   };
-  // Slow captures run independently from the queue protecting tab lifecycles.
-  return message && typeof message === 'object' && 'type' in message && message.type === 'preview'
+  // Indexed history reads and captures must not block tab actions or typing.
+  return message && typeof message === 'object' && 'type' in message && (message.type === 'preview' || message.type === 'history')
     ? handle() : enqueue(handle);
 });

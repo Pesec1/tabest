@@ -72,6 +72,19 @@ function fixture(closeTimeout = 3000) {
   return { controller, tabs, api, getFocused: () => focusedWindow, getPicker: () => tabs.find(tab => tab.url === url)! };
 }
 
+test('opening an explicit history result creates a tab or selects an already open matching page', async () => {
+  const { controller, tabs, getPicker } = fixture();
+  await controller.initialize(); await controller.toggle(1);
+  await controller.openHistory('https://new.example/page', getPicker());
+  assert.equal(tabs.find(tab => tab.active && tab.windowId === 1)?.url, 'https://new.example/page');
+  const count = tabs.length;
+  await controller.openHistory('https://example.org/#section', getPicker());
+  assert.equal(tabs.length, count);
+  assert.equal(tabs.find(tab => tab.id === 1)?.active, true);
+  await assert.rejects(controller.openHistory('javascript:alert(1)', getPicker()), /unavailable/);
+  await assert.rejects(controller.openHistory('https://new.example', { ...getPicker(), incognito: true }), /unavailable/);
+});
+
 test('opening creates a picker owned by the origin; second toggle closes it natively', async () => {
   const { controller, tabs, getPicker } = fixture();
   await controller.initialize(); await controller.toggle(1);

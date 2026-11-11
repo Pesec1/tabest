@@ -1,4 +1,5 @@
 import type { Request, Snapshot, TabItem } from './model.ts';
+import { historyUrl } from './history-suggestions.ts';
 
 type Api = Pick<typeof browser, 'tabs' | 'windows' | 'storage' | 'runtime'>;
 interface PickerSession { pickerId: number; originId?: number }
@@ -214,6 +215,17 @@ export class TabController {
     // Same-window selection needs no window activation. In Zen, refocusing
     // a window can also run its workspace/window synchronization handlers.
     if (tab.windowId !== callerWindowId) await this.api.windows.update(tab.windowId, { focused: true });
+  }
+
+  async openHistory(url: string, caller: browser.tabs.Tab): Promise<Snapshot> {
+    if (!historyUrl(url) || caller.incognito || (await this.api.windows.get(caller.windowId)).incognito) {
+      throw new Error('History suggestions are unavailable in this window.');
+    }
+    const snapshot = await this.snapshot(caller.windowId);
+    const existing = snapshot.tabs.find(tab => historyUrl(tab.url) === historyUrl(url));
+    if (existing) await this.focus(existing, caller.windowId);
+    else await this.api.tabs.create({ windowId: caller.windowId, url, active: true, openerTabId: caller.id });
+    return this.snapshot(caller.windowId);
   }
 
   async request(request: Request, senderTab: browser.tabs.Tab): Promise<Snapshot | undefined> {

@@ -11,6 +11,23 @@ The extension uses open-tab titles, URLs, identifiers, window identifiers, and
 tab state to display and search the picker. State can include pinning, audio,
 container, and discarded status. Search terms are processed locally in the picker.
 
+Typing alone does not submit a web search. If you explicitly press Alt+Enter
+(or your configured launchQuery binding) or click Search the web, the text is
+submitted through the browser's native search API to its default search engine.
+That provider receives the search and applies its own privacy policy. Choosing
+Open for a typed HTTP(S) address navigates a new tab to that address. These actions
+use the calling window, including its private context, and are separate from
+local tab/history matching. The extension does not hardcode a search provider or
+persist a separate list of submitted queries.
+
+If you enable Suggest visited sites and grant the optional history permission,
+nonempty queries with fewer than five matching open tabs also search the browser's
+local history index. The extension reads up to 100 matching records, using titles,
+addresses, visit counts, typed counts, and last-visit times to suggest up to five
+pages. It does not load those websites until you choose Open. Queries and history
+records are not sent to a remote search service. No history suggestions are
+requested for private windows, the Pinned filter, or the sample-data demo.
+
 Site icons use favicon addresses provided by the browser. Loading a remote icon
 may make a normal image request to that address, subject to the browser's cache
 and access rules; the picker omits the referrer. No third-party favicon lookup
@@ -29,9 +46,9 @@ inject content scripts into websites or download executable code.
 
 | Location | Contents | Lifetime |
 | --- | --- | --- |
-| `browser.storage.local` | Theme, compact/spacious layout, preview visibility, default window scope, custom keybindings, and selected tab filter. | Retained between browser sessions until preferences or extension data are cleared. |
+| `browser.storage.local` | Theme, compact/spacious layout, preview visibility, history-suggestion opt-in, default window scope, custom keybindings, and selected tab filter. | Retained between browser sessions until preferences or extension data are cleared. |
 | `browser.storage.session` | Picker/origin tab IDs, per-tab recency timestamps, and tracked picker/closed IDs. | Browser-session storage; may survive a background restart within that session. |
-| Extension memory and picker DOM | Tab metadata, current query, selected/marked results, and bounded preview caches. | Temporary application state, not intentionally written to persistent extension storage. |
+| Extension memory and picker DOM | Tab metadata, current query, selected/marked results, bounded preview caches, and current history suggestions. The background retains up to five offered history URLs for up to 20 pickers to validate explicit opening. | Temporary application state, not intentionally written to persistent extension storage. |
 
 The extension does not maintain a persistent screenshot library or browsing-history
 database. Browser storage, operating-system memory handling, and browser-managed
@@ -45,6 +62,11 @@ extension storage. The demo has no access to real browser tabs.
 - `tabs` exposes titles and URLs used for finding tabs and supplies tab-management
   functionality such as switching, closing, and pinning.
 - `storage` keeps preferences and session bookkeeping locally.
+- `search` runs only explicitly submitted web searches through the browser's
+  search engine. It is not used for background suggestions as you type.
+- Optional `history` enables visited-page suggestions only after feature opt-in
+  and browser permission. Turning the feature off or revoking access stops reads;
+  permission revocation and history deletion invalidate pending and visible results.
 - `<all_urls>` enables the Firefox `tabs.captureTab()` API used for page previews.
   It is broad permission; the extension currently uses it for capture, not for
   injecting scripts or modifying page contents. Captures remain subject to

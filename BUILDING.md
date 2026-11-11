@@ -36,6 +36,8 @@ npm run test:zen
 npm run test:zen:deletion
 npm run test:zen:filters
 npm run test:zen:ui
+npm run test:zen:suggestions
+npm run test:zen:query
 ```
 
 Each command builds first, then runs a dedicated native-browser scenario.
@@ -46,6 +48,19 @@ existing browser profile or modify the installed browser.
 The UI scenario checks compact/spacious layout, preview visibility and persistence,
 browser favicons, custom keyboard hints, and a narrow viewport. It also saves
 `ui-wide.png` and `ui-narrow.png` beside its temporary `result.json` report.
+
+The suggestions scenario seeds synthetic history in its fresh profile, grants
+the optional permission only in that profile, and checks ranking, permission
+denial/revocation, selection, the five-tab threshold, opening, deletion, and narrow
+layout. Its opening fixture uses a browser-blocked loopback port; it does not
+contact external websites. Screenshots are saved as `suggestions-wide.png` and
+`suggestions-narrow.png` beside the report.
+
+The query scenario installs a synthetic default search engine in the disposable
+profile using a browser-blocked loopback port. Native Alt+Enter presses verify
+both address opening and default-engine search, with Normal-mode, click,
+custom-binding, empty/invalid-input and narrow-layout checks. No real search
+provider is contacted. Screenshots are `query-wide.png` and `query-narrow.png`.
 
 The default binary is `/opt/zen-browser-bin/zen`. Override it when needed:
 

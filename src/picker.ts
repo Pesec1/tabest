@@ -1,5 +1,5 @@
 import './style.css';
-import type { Action, Mode, Reply, Request, Settings, Snapshot, TabFilter, TabItem } from './model.ts';
+import type { Action, HistorySuggestion, Mode, Reply, Request, Settings, Snapshot, TabFilter, TabItem } from './model.ts';
 import { defaultSettings, eventKey, KeyResolver, readSettings, validateKeymap } from './keys.ts';
 import { searchTabs } from './search.ts';
 import type { SearchResult } from './search.ts';
@@ -7,6 +7,9 @@ import { demoSnapshot } from './demo.ts';
 import { PreviewView } from './preview-view.ts';
 import { filterTabs, readTabFilter } from './filters.ts';
 import { actionHints } from './action-hints.ts';
+import { SuggestionSearch } from './suggestion-search.ts';
+import { historyUrl } from './history-suggestions.ts';
+import { queryAction } from './query-action.ts';
 
 const extension = typeof browser !== 'undefined' && Boolean(browser.runtime?.id);
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -32,6 +35,13 @@ app.innerHTML = `
 `;
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T { return document.getElementById(id) as T; }
+el('settings-form').insertAdjacentHTML('afterbegin', `
+  <div class="settings-row"><label for="history-suggestions">Suggest visited sites</label><input id="history-suggestions" type="checkbox" /></div>
+  <p class="muted">When fewer than 5 open tabs match, suggest up to 5 visited pages. Uses local browsing history with your permission; unavailable in private windows.</p>
+`);
+el('query').closest('.prompt-panel')!.insertAdjacentHTML('beforeend', `
+  <div id="query-action" class="query-action" hidden><button id="query-action-button" type="button"><span id="query-action-label"></span><kbd id="query-action-key"></kbd></button></div>
+`);
 const input = el<HTMLInputElement>('query');
 const resultsNode = el('results');
 const helpDialog = el<HTMLDialogElement>('help-dialog');
@@ -39,16 +49,23 @@ const settingsDialog = el<HTMLDialogElement>('settings-dialog');
 let settings: Settings = structuredClone(defaultSettings);
 let snapshot: Snapshot = { tabs: [], windowId: 0, private: false };
 let results: SearchResult[] = [];
-let selectedId: number | undefined;
+let choices: { id: number | string; tab?: SearchResult; history?: HistorySuggestion }[] = [];
+let selectedId: number | string | undefined;
 let marks = new Set<number>();
 let mode: Mode = 'insert';
 let scope: Settings['scope'] = 'all';
 let tabFilter: TabFilter = 'all';
 let busy = false;
+let permissionPending = false;
 let refreshGeneration = 0;
 let refreshTimer: ReturnType<typeof setTimeout>;
 let pickerId: number | undefined;
 const resolver = new KeyResolver();
+const historySearch = new SuggestionSearch(async query => {
+  const reply = await browser.runtime.sendMessage({ type: 'history', query, pickerId }) as Reply | undefined;
+  if (!reply?.ok) throw new Error('History unavailable');
+  return reply.suggestions ?? [];
+}, () => render());
 const pagePreview = new PreviewView(async id => {
   if (!extension) return { state: 'unavailable', reason: 'demo' };
   const reply = await browser.runtime.sendMessage({ type: 'preview', id, pickerId }) as Reply | undefined;
@@ -63,7 +80,9 @@ function message(text: string, error = false): void {
 
 async function request(payload: Request): Promise<Snapshot | undefined> {
   if (!extension) {
-    if (payload.type === 'select' || payload.type === 'return') {
+    if (payload.type === 'launch-query') {
+      message('Preview mode. Load the extension to open an address or search the web.');
+    } else if (payload.type === 'select' || payload.type === 'return') {
       message('Preview mode. Load the extension in Firefox to switch real tabs.');
     } else if (payload.type === 'close') snapshot.tabs = snapshot.tabs.filter(tab => !payload.ids.includes(tab.id));
     else if (payload.type === 'pin') {
@@ -146,10 +165,15 @@ function render(): void {
   const visibleIds = new Set(tabs.map(tab => tab.id));
   marks = new Set([...marks].filter(id => visibleIds.has(id)));
   results = searchTabs(tabs, input.value);
-  if (!results.some(result => result.tab.id === selectedId)) selectedId = results[0]?.tab.id;
+  historySearch.update(input.value, extension && settings.historySuggestions && !snapshot.private && tabFilter === 'all' && results.length < 5);
+  const openUrls = new Set(snapshot.tabs.map(tab => historyUrl(tab.url)));
+  const suggestions = historySearch.items.filter(item => !openUrls.has(historyUrl(item.url)));
+  choices = [...results.map(tab => ({ id: tab.tab.id, tab })),
+    ...suggestions.map(history => ({ id: `history:${history.url}`, history }))];
+  if (!choices.some(result => result.id === selectedId)) selectedId = choices[0]?.id;
   resultsNode.replaceChildren();
   el('query-count').textContent = `${tabs.length} tabs`;
-  el('result-count').textContent = String(results.length).padStart(2, '0');
+  el('result-count').textContent = String(choices.length).padStart(2, '0');
   el('context').textContent = extension ? (snapshot.private ? 'Private window' : `Window ${snapshot.windowId}`) : 'INTERACTIVE PREVIEW';
   el('scope-all').classList.toggle('active', scope === 'all');
   el('scope-window').classList.toggle('active', scope === 'window');
@@ -160,17 +184,21 @@ function render(): void {
     el(id).setAttribute('aria-pressed', String(active));
   }
   renderFilterHints();
-  if (!results.length) {
+  if (!choices.length) {
     const empty = node('div', 'empty');
     empty.append(node('span', 'empty-symbol', '⌕'), node('h2', '', tabFilter === 'pinned' ? 'No pinned tabs found' : 'No tabs found'), node('p', '', tabFilter === 'pinned' ? 'Try a shorter query, search all windows, or switch to All tabs.' : 'Try a shorter query or search all windows.'));
     resultsNode.append(empty);
+    if (historySearch.state === 'loading') empty.querySelector('p')!.textContent = 'Looking for visited pages…';
+    if (historySearch.state === 'error') empty.querySelector('p')!.textContent = 'History is unavailable. Check its permission in Settings.';
   }
   const fragment = document.createDocumentFragment();
+  if (suggestions.length && results.length) fragment.append(node('div', 'result-section', `Open tabs · ${results.length}`));
   for (const result of results) {
     const { tab } = result;
     const row = node('div', 'result');
     row.id = `tab-${tab.id}`;
     row.dataset.id = String(tab.id);
+    row.dataset.key = String(tab.id);
     row.setAttribute('role', 'option');
     row.setAttribute('aria-label', `${tab.title}, ${tab.url}${marks.has(tab.id) ? ', marked' : ''}`);
     row.append(node('span', 'result-pointer', '›'));
@@ -191,41 +219,94 @@ function render(): void {
     row.append(badges);
     fragment.append(row);
   }
+  if (suggestions.length) fragment.append(node('div', 'result-section', `From history · ${suggestions.length}`));
+  for (const [index, item] of suggestions.entries()) {
+    const row = node('div', 'result history-result');
+    row.id = `history-${index}`;
+    row.dataset.key = `history:${item.url}`;
+    row.dataset.history = item.url;
+    row.setAttribute('role', 'option');
+    row.setAttribute('aria-label', `${item.title}, ${item.url}, open in new tab`);
+    row.append(node('span', 'result-pointer', '›'), node('span', 'tab-icon', domain(item.url).charAt(0).toUpperCase()));
+    const content = node('div', 'result-content');
+    const title = node('div', 'result-title'); title.append(highlighted(item.title, item.titlePositions));
+    const url = node('div', 'result-url'); url.append(highlighted(item.url, item.urlPositions));
+    content.append(title, url);
+    row.append(content, node('span', 'history-action', '↵ Open'));
+    fragment.append(row);
+  }
   resultsNode.append(fragment);
   updateSelection();
 }
 
 function updateSelection(): void {
+  updateQueryAction();
   for (const row of resultsNode.querySelectorAll<HTMLElement>('.result')) {
-    const selected = Number(row.dataset.id) === selectedId;
+    const selected = row.dataset.key === String(selectedId);
     row.classList.toggle('selected', selected);
     row.classList.toggle('marked', marks.has(Number(row.dataset.id)));
     row.setAttribute('aria-selected', String(marks.has(Number(row.dataset.id))));
     row.setAttribute('data-active', String(selected));
   }
-  if (selectedId !== undefined) input.setAttribute('aria-activedescendant', `tab-${selectedId}`);
+  const activeRow = resultsNode.querySelector<HTMLElement>('.result.selected');
+  if (activeRow) input.setAttribute('aria-activedescendant', activeRow.id);
   else input.removeAttribute('aria-activedescendant');
   el('selection-count').textContent = marks.size ? `${marks.size} tab${marks.size === 1 ? '' : 's'} marked` : 'No tabs marked';
-  const index = results.findIndex(result => result.tab.id === selectedId);
-  const selected = results[index]?.tab;
+  const index = choices.findIndex(result => result.id === selectedId);
+  const choice = choices[index];
+  const selected = choice?.tab?.tab;
   const hints = el('action-hints');
   hints.replaceChildren();
-  for (const hint of actionHints(settings, mode, marks.size, Boolean(selected), Boolean(selected?.pinned), selectedId !== undefined && marks.has(selectedId))) {
+  const available = actionHints(settings, mode, choice?.history ? 0 : marks.size, Boolean(selected), Boolean(selected?.pinned), typeof selectedId === 'number' && marks.has(selectedId));
+  if (choice?.history) {
+    const key = Object.entries(settings.keymap[mode]).find(([, action]) => action === 'accept')?.[0];
+    if (key) available.unshift({ key, label: 'Open in new tab' });
+  }
+  for (const hint of available) {
     const item = node('span', 'action-hint');
     item.append(node('kbd', '', hint.key), document.createTextNode(hint.label));
     hints.append(item);
   }
-  el('preview-index').textContent = index >= 0 ? `${index + 1} / ${results.length}` : '—';
+  el('preview-index').textContent = index >= 0 ? `${index + 1} / ${choices.length}` : '—';
   // Only scroll the list: scrollIntoView can also move the whole page when
   // navigating a long list near the bottom of the viewport.
-  const activeRow = document.getElementById(`tab-${selectedId}`);
   if (activeRow) {
     const row = activeRow.getBoundingClientRect();
     const list = resultsNode.getBoundingClientRect();
     if (row.top < list.top) resultsNode.scrollTop += row.top - list.top;
     else if (row.bottom > list.bottom) resultsNode.scrollTop += row.bottom - list.bottom;
   }
-  renderPreview(results[index]);
+  if (choice?.history) renderHistoryPreview(choice.history);
+  else renderPreview(choice?.tab);
+}
+
+function updateQueryAction(): void {
+  const action = queryAction(input.value);
+  el('query-action').hidden = !action;
+  const button = el<HTMLButtonElement>('query-action-button');
+  button.disabled = busy || !action || action.kind === 'invalid';
+  const label = !action ? '' : action.kind === 'address' ? `Open ${new URL(action.url).host}` : action.kind === 'search' ? 'Search the web' : 'Check the address';
+  el('query-action-label').textContent = label;
+  button.title = !action ? '' : action.kind === 'address' ? action.url : action.kind === 'search' ? `Search with your browser's default engine: ${action.query}` : action.reason;
+  button.setAttribute('aria-label', button.title || label);
+  const binding = Object.entries(settings.keymap[mode]).find(([, value]) => value === 'launchQuery')?.[0];
+  el('query-action-key').textContent = binding ?? '';
+  el('query-action-key').hidden = !binding;
+}
+
+function renderHistoryPreview(item: HistorySuggestion): void {
+  pagePreview.invalidate();
+  const preview = el('preview'); preview.replaceChildren();
+  if (!settings.showPreview) return;
+  const summary = node('div', 'preview-summary');
+  const title = node('h2', 'preview-title', item.title); title.title = item.title;
+  const url = node('p', 'preview-url', item.url); url.title = item.url;
+  summary.append(node('span', 'preview-domain', domain(item.url)), title, url);
+  const note = node('div', 'history-preview-note', 'From your browsing history. Open this page in a new tab.');
+  const actions = node('div', 'preview-actions');
+  const open = node('button', 'primary', 'Open in new tab ↵');
+  open.addEventListener('click', () => void execute('accept')); actions.append(open);
+  preview.append(summary, note, actions);
 }
 
 function renderPreview(result?: SearchResult): void {
@@ -306,41 +387,52 @@ function setMode(next: Mode): void {
 }
 
 function move(delta: number): void {
-  if (!results.length) return;
-  const index = results.findIndex(result => result.tab.id === selectedId);
-  selectedId = results[(index + delta + results.length) % results.length].tab.id;
+  if (!choices.length) return;
+  const index = choices.findIndex(result => result.id === selectedId);
+  selectedId = choices[(index + delta + choices.length) % choices.length].id;
   updateSelection();
 }
 
 async function execute(action: Action): Promise<void> {
   if (busy) return;
+  if (action === 'launchQuery') {
+    const plan = queryAction(input.value);
+    if (!plan) return;
+    if (plan.kind === 'invalid') { message(plan.reason, true); return; }
+  }
   switch (action) {
     case 'next': move(1); return;
     case 'previous': move(-1); return;
     case 'normal': setMode('normal'); return;
     case 'insert': setMode('insert'); return;
-    case 'first': selectedId = results[0]?.tab.id; updateSelection(); return;
-    case 'last': selectedId = results.at(-1)?.tab.id; updateSelection(); return;
+    case 'first': selectedId = choices[0]?.id; updateSelection(); return;
+    case 'last': selectedId = choices.at(-1)?.id; updateSelection(); return;
     case 'help': showHelp(); return;
     case 'scope': scope = scope === 'all' ? 'window' : 'all'; render(); return;
     case 'allTabs': setTabFilter('all'); return;
     case 'pinnedTabs': setTabFilter('pinned'); return;
     case 'markNext': case 'markPrevious':
-      if (selectedId !== undefined) {
+      if (typeof selectedId === 'number') {
         if (marks.has(selectedId)) marks.delete(selectedId); else marks.add(selectedId);
         move(action === 'markNext' ? 1 : -1); render();
       }
       return;
   }
-  if (action !== 'cancel' && selectedId === undefined && !marks.size) return;
+  const historyItem = choices.find(choice => choice.id === selectedId)?.history;
+  if (historyItem && (action === 'close' || action === 'pin')) return;
+  if (action !== 'cancel' && action !== 'launchQuery' && selectedId === undefined && !marks.size) return;
   busy = true;
+  updateQueryAction();
   try {
     let updated: Snapshot | undefined;
-    if (action === 'accept' && selectedId !== undefined) updated = await request({ type: 'select', id: selectedId });
+    if (action === 'launchQuery') updated = await request({ type: 'launch-query', query: input.value });
+    else if (action === 'accept' && historyItem) updated = await request({ type: 'open-history', url: historyItem.url });
+    else if (action === 'accept' && typeof selectedId === 'number') updated = await request({ type: 'select', id: selectedId });
     else if (action === 'cancel') updated = await request({ type: 'return' });
-    else if (action === 'pin' && selectedId !== undefined) updated = await request({ type: 'pin', id: selectedId });
+    else if (action === 'pin' && typeof selectedId === 'number') updated = await request({ type: 'pin', id: selectedId });
     else if (action === 'close') {
-      const ids = marks.size ? [...marks] : [selectedId!];
+      const ids = marks.size ? [...marks] : typeof selectedId === 'number' ? [selectedId] : [];
+      if (!ids.length) return;
       if ((ids.length > 1 || snapshot.tabs.some(tab => ids.includes(tab.id) && tab.pinned)) &&
         !window.confirm(`Close ${ids.length} tab(s)?${snapshot.tabs.some(tab => ids.includes(tab.id) && tab.pinned) ? ' Includes pinned tabs.' : ''}`)) return;
       updated = await request({ type: 'close', ids });
@@ -349,9 +441,10 @@ async function execute(action: Action): Promise<void> {
     }
     if (updated) { snapshot = updated; render(); }
   } catch (error) {
+    historySearch.reset();
     await refresh();
     message(error instanceof Error ? error.message : String(error), true);
-  } finally { busy = false; }
+  } finally { busy = false; updateQueryAction(); }
 }
 
 function showHelp(): void {
@@ -369,6 +462,8 @@ function showHelp(): void {
 }
 
 function fillSettings(value: Settings): void {
+  el<HTMLInputElement>('history-suggestions').checked = value.historySuggestions;
+  el<HTMLInputElement>('history-suggestions').disabled = snapshot.private;
   el('settings-form').dataset.layout = value.layout;
   el('settings-form').dataset.preview = String(value.showPreview);
   el<HTMLSelectElement>('theme').value = value.theme;
@@ -398,7 +493,11 @@ async function toggleView(field: 'layout' | 'showPreview'): Promise<void> {
   input.focus({ preventScroll: true });
 }
 
-input.addEventListener('input', () => { selectedId = undefined; render(); });
+input.addEventListener('input', () => {
+  selectedId = undefined;
+  if (el('status').classList.contains('error')) message('');
+  render();
+});
 document.addEventListener('keydown', event => {
   if (event.isComposing || event.key === 'Process' || helpDialog.open || settingsDialog.open) return;
   const target = event.target as HTMLElement;
@@ -412,7 +511,7 @@ document.addEventListener('keydown', event => {
 resultsNode.addEventListener('click', event => {
   const row = (event.target as HTMLElement).closest<HTMLElement>('.result');
   if (!row) return;
-  selectedId = Number(row.dataset.id);
+  selectedId = row.dataset.history ? row.dataset.key : Number(row.dataset.id);
   updateSelection();
   void execute('accept');
 });
@@ -421,9 +520,24 @@ el('scope-window').addEventListener('click', () => { scope = 'window'; render();
 el('filter-all').addEventListener('click', () => { setTabFilter('all'); input.focus({ preventScroll: true }); });
 el('filter-pinned').addEventListener('click', () => { setTabFilter('pinned'); input.focus({ preventScroll: true }); });
 el('help-button').addEventListener('click', showHelp);
+el('query-action-button').addEventListener('click', () => void execute('launchQuery'));
 el('layout-button').addEventListener('click', () => void toggleView('layout'));
 el('preview-button').addEventListener('click', () => void toggleView('showPreview'));
 el('settings-button').addEventListener('click', () => { fillSettings(settings); settingsDialog.showModal(); });
+el('history-suggestions').addEventListener('change', async () => {
+  const checkbox = el<HTMLInputElement>('history-suggestions');
+  if (!checkbox.checked) return;
+  if (!extension || snapshot.private) { checkbox.checked = false; return; }
+  permissionPending = true; checkbox.disabled = true;
+  try {
+    // Request directly from this user gesture, before any other await.
+    if (!await browser.permissions.request({ permissions: ['history'] })) {
+      checkbox.checked = false; el('settings-error').textContent = 'History permission was not granted.';
+    }
+    else el('settings-error').textContent = '';
+  } catch { checkbox.checked = false; el('settings-error').textContent = 'Could not enable history. Try again from Settings.'; }
+  finally { permissionPending = false; checkbox.disabled = false; }
+});
 el('reset-settings').addEventListener('click', () => fillSettings(defaultSettings));
 el('shortcut-settings').addEventListener('click', () => {
   if (extension) void browser.commands.openShortcutSettings().catch(() => { el('settings-error').textContent = 'Open about:addons → gear menu → Manage Extension Shortcuts.'; });
@@ -436,9 +550,14 @@ for (const dialog of [helpDialog, settingsDialog]) {
 el('settings-form').addEventListener('submit', async event => {
   event.preventDefault();
   try {
+    if (permissionPending) throw new Error('Finish the browser permission prompt before saving.');
     const keymap: unknown = JSON.parse(el<HTMLTextAreaElement>('keymap').value);
     if (!validateKeymap(keymap)) throw new Error('Expected insert and normal objects mapping keys to known actions.');
-    const next = readSettings({ ...settings, layout: el('settings-form').dataset.layout, showPreview: el('settings-form').dataset.preview !== 'false', keymapVersion: 2, theme: el<HTMLSelectElement>('theme').value, scope: el<HTMLSelectElement>('default-scope').value, keymap });
+    const historySuggestions = el<HTMLInputElement>('history-suggestions').checked;
+    if (historySuggestions && extension && !await browser.permissions.contains({ permissions: ['history'] })) {
+      throw new Error('Enable history permission by switching Suggest visited sites off and on.');
+    }
+    const next = readSettings({ ...settings, historySuggestions, layout: el('settings-form').dataset.layout, showPreview: el('settings-form').dataset.preview !== 'false', keymapVersion: 3, theme: el<HTMLSelectElement>('theme').value, scope: el<HTMLSelectElement>('default-scope').value, keymap });
     if (extension) await browser.storage.local.set({ settings: next });
     else localStorage.setItem('telescope-settings', JSON.stringify(next));
     settings = next;
@@ -455,11 +574,12 @@ document.querySelector('.brand')!.addEventListener('click', event => {
 if (extension) {
   browser.runtime.onMessage.addListener(message => {
     if (message?.type === 'preview-invalidated') { pagePreview.invalidate(message.id); scheduleRefresh(); }
+    else if (message?.type === 'history-changed') { historySearch.reset(); render(); }
     else if (message?.type === 'changed') scheduleRefresh();
   });
   browser.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    if (changes.settings) { settings = readSettings(changes.settings.newValue); applyTheme(); render(); }
+    if (changes.settings) { settings = readSettings(changes.settings.newValue); historySearch.reset(); applyTheme(); render(); }
     if (changes.tabFilter) { tabFilter = readTabFilter(changes.tabFilter.newValue); render(); }
   });
   document.addEventListener('visibilitychange', () => {

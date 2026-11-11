@@ -60,9 +60,19 @@ declare namespace browser {
     function openShortcutSettings(): Promise<void>;
     const onCommand: BrowserEvent<(command: string, tab?: tabs.Tab) => void>;
   }
+  namespace search {
+    function search(options: { query: string; tabId: number }): Promise<void>;
+  }
   namespace permissions {
-    function contains(permissions: { origins: string[] }): Promise<boolean>;
+    function contains(permissions: { origins?: string[]; permissions?: string[] }): Promise<boolean>;
+    function request(permissions: { permissions: string[] }): Promise<boolean>;
+    const onAdded: BrowserEvent<() => void>;
     const onRemoved: BrowserEvent<() => void>;
+  }
+  namespace history {
+    interface HistoryItem { id: string; url?: string; title?: string; lastVisitTime?: number; visitCount?: number; typedCount?: number }
+    function search(query: { text: string; startTime: number; maxResults: number }): Promise<HistoryItem[]>;
+    const onVisitRemoved: BrowserEvent<() => void>;
   }
   namespace action {
     const onClicked: BrowserEvent<(tab: tabs.Tab) => void>;

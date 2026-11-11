@@ -30,10 +30,12 @@ be added after publication. Until then, use the development installation below.
 - Choose dark, light, or system appearance.
 - Use a compact layout with more visible results, or switch to the spacious view.
 - Recognize tabs by their site icons and see keyboard hints for the current selection.
+- Optionally suggest visited pages when few open tabs match your query.
 
 Tabs are ranked by match quality and recency. Pinned tabs do not receive a hidden
 ranking boost: use the Pinned filter when you want to search only among them.
-No account, analytics, remote search service, or cloud backend is used.
+Tab lookup runs locally, without an account, analytics, or cloud backend.
+Explicit web searches use the browser's default search engine.
 
 ## See it in action
 
@@ -72,6 +74,7 @@ another extension, or an operating-system shortcut.
 | --- | --- | --- |
 | Next / previous result | Ctrl+n / Ctrl+p, Ctrl+j / Ctrl+k, arrows | j / k, arrows |
 | Switch to selected tab | Enter | Enter |
+| Open typed address / search the web | Alt+Enter | Alt+Enter |
 | Enter Normal / Insert mode | Escape | i or / |
 | Close picker | Ctrl+c | Escape or Ctrl+c |
 | Mark and move next / previous | Tab / Shift+Tab | Tab / Shift+Tab |
@@ -94,14 +97,68 @@ keybindings. In Insert mode, Escape reveals the Normal-mode management actions.
 Site icons come from browser-provided favicon addresses; unavailable icons fall
 back to a domain initial. The screenshots above show the spacious layout.
 
+## Open an address or search the web
+
+Type an address or a search phrase, then press **Alt+Enter** or click the action
+under the input. `github.com` opens `https://github.com/`; `как настроить nginx`
+searches with your browser's default engine in a new tab in the same window.
+The action label shows **Open …** or **Search the web** before you submit.
+This works even when no existing results match. Ordinary Enter still selects
+the active result and does not automatically submit a web search.
+
+HTTP(S) addresses, domains, localhost, IPv4 and bracketed IPv6 are supported.
+Bare domains use HTTPS; bare localhost and IP addresses use HTTP. Empty input
+does nothing. Unsupported protocols, credentials in URLs, and malformed explicit
+HTTP(S) addresses are rejected. Plain single words are search phrases.
+
+The local picker action is named `launchQuery` in the Insert/Normal keymap;
+the displayed hint follows your actual binding. Migration preserves custom
+bindings and sequences. Version 3 keymaps can deliberately omit the action.
+No additional global shortcut is registered. The sample-data demo only reports
+the intended action and does not navigate. Opening/searching does not require
+history opt-in. Search uses the browser's
+[native API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/search/search)
+and the required `search` permission; the provider is not hardcoded.
+
+## Suggestions from browsing history
+
+Enable **Settings → Suggest visited sites**, allow history access in the browser
+prompt, then save settings. With a nonempty query, fewer than five matching open
+tabs, and the All tabs filter, up to five suggestions appear under **From history**.
+Open tabs stay first; already open pages are excluded, including tabs in other
+normal windows. History is not used in private windows or the sample-data demo.
+
+Use the same navigation keys to reach a suggestion and press **Enter** to open it
+in a new tab. If that page has opened in the meantime, Tabest switches to it.
+Mark, close, and pin commands do not act on history rows. History suggestions
+show page details without capturing a screenshot or loading the website.
+
+Open-tab search updates immediately. History uses the browser's local index after
+a 40 ms typing pause; late replies cannot replace newer queries or steal the
+selected row. Among up to 100 matching history candidates, ranking considers
+title/URL relevance, visit frequency, typed visits, and recency. This is a bounded
+history search, not the browser address bar's complete autocomplete algorithm;
+bookmarks and remote search suggestions are not included. The API matches query
+words in titles and URLs; history lookup does not provide arbitrary fuzzy matches.
+
+Turn the setting off to stop history reads. Revoking the optional permission or
+deleting browser-history entries invalidates existing suggestions. The extension
+does not persist its own history index. See the
+[history API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/history/search)
+and [privacy notice](PRIVACY.md).
+
 ## Privacy and permissions
 
 Search runs locally. Tab titles, URLs, and available page snapshots are processed
 inside the browser, not sent to a search service. Preview images are cached in
 extension memory; they are not written to persistent extension storage.
+Only an explicit Search the web action submits the entered text to the browser's
+default search provider.
 
 - **tabs:** read tab metadata and manage tab selection, closing, and pinning.
 - **storage:** remember preferences and browser-session bookkeeping.
+- **search:** submit an explicit web search through the browser's default engine.
+- **history (optional):** find visited-page suggestions after you enable the feature.
 - **Access to all websites:** required by the Firefox API used to capture page
   previews. Without the permission, preview shows a placeholder.
 

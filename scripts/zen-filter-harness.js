@@ -36,10 +36,30 @@ try {
       tip.keyup(key('keyup', 'Shift', 'ShiftLeft', 16)); tip.keyup(key('keyup', 'Control', 'ControlLeft', 17));
       await until(() => {
         const titles = Array.from(win.gBrowser.tabs).map(tab => extension.tabManager.convert(tab)?.title ?? '');
-        const failure = titles.find(title => title.includes('[filters-failed:'));
+        const failure = titles.find(title => title.includes(options.ui ? '[ui-failed:' : '[filters-failed:'));
         if (failure) throw new Error(failure);
-        return titles.some(title => title.includes('[filters-ok]'));
+        return titles.some(title => title.includes(options.ui ? '[ui-wide-ok]' : '[filters-ok]'));
       }, 'Filter UI checks timed out');
+      if (options.ui) {
+        const picker = Array.from(win.gBrowser.tabs).find(tab => (extension.tabManager.convert(tab)?.title ?? '').includes('[ui-wide-ok]'));
+        const capture = async name => {
+          const bitmap = await picker.linkedBrowser.browsingContext.currentWindowGlobal.drawSnapshot(null, 1, '#121518');
+          const canvas = win.document.createElementNS('http://www.w3.org/1999/xhtml', 'canvas');
+          canvas.width = bitmap.width; canvas.height = bitmap.height;
+          canvas.getContext('2d').drawImage(bitmap, 0, 0); bitmap.close();
+          const bytes = Uint8Array.from(win.atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
+          await IOUtils.write(options.resultPath.replace('result.json', name + '.png'), bytes);
+        };
+        await capture('ui-wide');
+        const box = picker.linkedBrowser.getBoundingClientRect();
+        win.resizeTo(win.outerWidth + 400 - box.width, win.outerHeight + 760 - box.height);
+        await until(() => {
+          const title = extension.tabManager.convert(picker)?.title ?? '';
+          if (title.includes('[ui-failed:')) throw new Error(title);
+          return title.includes('[ui-ok]');
+        }, 'Narrow UI checks timed out');
+        await capture('ui-narrow');
+      }
       report.passed = true;
     } catch (error) { report.error = String(error); report.stack = error.stack; }
     report.done = true;

@@ -65,7 +65,14 @@ kbd { font: inherit; font-size: 10px; border: 1px solid var(--border); border-ra
 .tab-icon { width: 28px; height: 30px; display: grid; place-items: center; color: var(--muted); background: var(--raised); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; flex-shrink: 0; }
 .result-content { flex: 1; min-width: 0; }.result-title { font-size: 12px; margin-bottom: 7px; }.result-title, .result-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.result-url { font-size: 10px; color: var(--dim); }
 mark { background: none; color: var(--accent); font-weight: 700; }.result-badges { display: flex; align-items: center; gap: 7px; }.small-badge { font-size: 8px; color: var(--dim); }.window-badge { font-size: 9px; color: var(--dim); border: 1px solid var(--border); padding: 4px; border-radius: 3px; }.marked-badge { color: var(--accent); }
-.results-bottom { flex: 0 0 auto; padding: 12px 18px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; color: var(--dim); font-size: 9px; background: var(--panel); }.results-bottom > :last-child { letter-spacing: 1.2px; font-size: 8px; }
+.results-bottom { flex: 0 0 auto; padding: 12px 18px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; align-items: center; color: var(--dim); font-size: 10px; background: var(--panel); }
+#action-hints { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.action-hint { display: inline-flex; align-items: center; gap: 6px; }
+.action-hint kbd { font-size: 9px; padding: 2px 4px; }
+.tab-icon img, .preview-icon img { display: block; width: 16px; height: 16px; object-fit: contain; }
+.top-actions button[aria-pressed='true'] { color: var(--accent); }
+[data-preview='false'] .workspace { grid-template-columns: minmax(0, 1fr); }
+[data-preview='false'] .preview-panel { display: none; }
 .preview-panel {
   min-width: 0; min-height: 0; display: flex; flex-direction: column;
   overflow: clip; container-type: size; container-name: tab-preview;
@@ -117,4 +124,22 @@ dialog { width: min(720px, calc(100% - 32px)); max-height: 85vh; overflow-y: aut
 @media (min-width: 1600px) { .intro { padding-top: 65px; } }
 @media (max-width: 900px) { main { padding-inline: 24px; }.workspace { grid-template-columns: minmax(0, 1.3fr) minmax(250px, 1fr); gap: 12px; }.result { gap: 8px; }.small-badge { display: none; }.context { display: none; }.panel-label { padding-inline: 13px; } }
 @media (max-width: 680px) { .topbar { height: 65px; padding-inline: 20px; }.intro { padding: 30px 0 24px; }.session-label { display: none; }.workspace { grid-template-columns: 1fr; height: 60vh; min-height: 400px; }.preview-panel { display: none; }.statusbar > div { gap: 8px; }#status { font-size: 9px; }.statusbar .quiet { font-size: 0; }.statusbar .quiet kbd { font-size: 11px; }footer { font-size: 8px; gap: 20px; }#bindings { grid-template-columns: 1fr; }.brand { font-size: 15px; }.scope-control button { padding-inline: 6px; } }
+[data-layout='compact'] .topbar { height: 54px; padding-inline: 24px; }
+[data-layout='compact'] main { max-width: 1600px; padding: 18px 24px 0; }
+[data-layout='compact'] .intro, [data-layout='compact'] footer { display: none; }
+[data-layout='compact'] .workspace { height: calc(100dvh - 140px); min-height: 410px; }
+[data-layout='compact'] .search-column { gap: 10px; }
+[data-layout='compact'] .prompt-panel .panel-label { min-height: 30px; }
+[data-layout='compact'] .prompt-line { padding-bottom: 12px; }
+[data-layout='compact'] .result { min-height: 50px; padding-block: 7px; }
+[data-layout='compact'] .result-title { margin-bottom: 4px; }
+[data-layout='compact'] .statusbar { min-height: 56px; }
+@media (max-width: 680px) {
+  .top-actions { gap: 14px; font-size: 11px; }
+  #preview-button, .brand-divider, .brand-section { display: none; }
+  [data-layout='compact'] main { padding: 12px 12px 0; }
+  [data-layout='compact'] .topbar { padding-inline: 16px; }
+  [data-layout='compact'] .workspace { height: calc(100dvh - 130px); }
+  .results-bottom { padding: 10px 12px; }
+}
 @media (prefers-reduced-motion: no-preference) { .result { transition: background .08s ease; } }

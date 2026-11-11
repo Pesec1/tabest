@@ -23,6 +23,7 @@
 | `npm run test:zen` | Сборка; preview, геометрия, хоткей и очистка дублей в Zen. |
 | `npm run test:zen:deletion` | Сборка; удаление, выбор и повторное открытие picker. |
 | `npm run test:zen:filters` | Сборка; фильтры, клавиши, сохранение и адаптивная вёрстка. |
+| `npm run test:zen:ui` | Сборка; компактный вид, preview, favicon, подсказки, сохранение и узкое окно; снимки в каталоге отчёта. |
 | `npm run lint:extension` | Проверка manifest и расширения через `web-ext`. |
 | `npm run package` | Сборка и упаковка через `web-ext` в `artifacts/`. |
 

@@ -3,7 +3,20 @@
 This is a development changelog, not a claim that these versions are published
 on Firefox Add-ons. The current package version is **0.2.4**.
 
-## Unreleased — Documentation and presentation
+## Unreleased
+
+### Picker usability
+
+- Default to a compact layout with the search near the top and denser result rows;
+  remember the compact/spacious layout and preview visibility toggles.
+- Display browser-provided site icons in results and preview, with domain initials
+  when an icon is unavailable and no third-party icon lookup service.
+- Show contextual keyboard hints based on the active mode, marks, pin state, and
+  the user's actual keymap, including deliberately removed bindings.
+- Add isolated Zen UI coverage for the new controls, icons, hints, persistence,
+  and narrow layout, with temporary screenshots for visual inspection.
+
+### Documentation and presentation
 
 - Embedded the animated brand icon and two real UI screenshots in the README.
 - Added downloadable artwork and icon links, with AI artwork distinguished from

@@ -8,6 +8,7 @@ declare namespace browser {
       url?: string;
       pendingUrl?: string;
       title?: string;
+      favIconUrl?: string;
       active: boolean;
       pinned: boolean;
       incognito: boolean;

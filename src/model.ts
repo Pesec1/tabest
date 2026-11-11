@@ -3,6 +3,7 @@ export interface TabItem {
   windowId: number;
   title: string;
   url: string;
+  favIconUrl?: string;
   lastUsed: number;
   pinned: boolean;
   audible: boolean;
@@ -28,6 +29,8 @@ export interface Settings {
   keymapVersion: 2;
   scope: 'all' | 'window';
   theme: 'dark' | 'light' | 'system';
+  layout: 'compact' | 'comfortable';
+  showPreview: boolean;
   keymap: Keymap;
 }
 

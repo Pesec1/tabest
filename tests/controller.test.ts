@@ -2,6 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TabController } from '../src/controller.ts';
 
+test('snapshots carry browser favicons while keeping private icons out of regular windows', async () => {
+  const { controller, tabs } = fixture();
+  tabs[0].favIconUrl = 'https://example.org/icon.png';
+  tabs[3].favIconUrl = 'https://private.example/icon.png';
+  await controller.initialize();
+  const snapshot = await controller.snapshot(1);
+  assert.equal(snapshot.tabs.find(tab => tab.id === 1)?.favIconUrl, tabs[0].favIconUrl);
+  assert(!snapshot.tabs.some(tab => tab.favIconUrl === tabs[3].favIconUrl));
+});
+
 function fixture(closeTimeout = 3000) {
   let nextId = 10;
   const url = 'moz-extension://test/picker.html';

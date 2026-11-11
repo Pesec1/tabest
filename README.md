@@ -28,6 +28,8 @@ be added after publication. Until then, use the development installation below.
 - Switch between all tabs and pinned tabs independently of window scope.
 - Mark several tabs, close a selection, or pin and unpin individual tabs.
 - Choose dark, light, or system appearance.
+- Use a compact layout with more visible results, or switch to the spacious view.
+- Recognize tabs by their site icons and see keyboard hints for the current selection.
 
 Tabs are ranked by match quality and recency. Pinned tabs do not receive a hidden
 ranking boost: use the Pinned filter when you want to search only among them.
@@ -83,6 +85,14 @@ another extension, or an operating-system shortcut.
 Settings includes the editable Insert/Normal keymap. The tab filter is remembered
 between openings. Changing filters preserves the query and the active result
 where possible; marks hidden by a scope or tab-filter change are cleared.
+
+The picker starts in **Compact** view. Toggle **Compact** in the header to restore
+the spacious layout, or toggle **Preview** to give the list the full width. Both
+preferences are remembered. On narrow screens, the preview is hidden automatically.
+The hints below the results reflect your active mode, marked tabs, and custom
+keybindings. In Insert mode, Escape reveals the Normal-mode management actions.
+Site icons come from browser-provided favicon addresses; unavailable icons fall
+back to a domain initial. The screenshots above show the spacious layout.
 
 ## Privacy and permissions
 

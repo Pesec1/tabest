@@ -35,12 +35,17 @@ Tests run directly from TypeScript with Node's built-in test runner using
 npm run test:zen
 npm run test:zen:deletion
 npm run test:zen:filters
+npm run test:zen:ui
 ```
 
 Each command builds first, then runs a dedicated native-browser scenario.
 The runner copies a Zen installation and the add-on into a new temporary directory,
 creates a separate profile, and uses local fixtures. It does not use a user's
 existing browser profile or modify the installed browser.
+
+The UI scenario checks compact/spacious layout, preview visibility and persistence,
+browser favicons, custom keyboard hints, and a narrow viewport. It also saves
+`ui-wide.png` and `ui-narrow.png` beside its temporary `result.json` report.
 
 The default binary is `/opt/zen-browser-bin/zen`. Override it when needed:
 

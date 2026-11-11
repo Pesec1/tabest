@@ -9,6 +9,7 @@
 - `src/picker.ts`, `src/style.css`, `picker.html` — интерфейс без UI-фреймворка.
 - `src/search.ts`, `src/filters.ts`, `src/keys.ts` — поиск, фильтры, привязки
   клавиш и чтение настроек; `src/model.ts` — общие типы и сообщения.
+- `src/action-hints.ts` — контекстные подсказки по текущему режиму и раскладке.
 - `src/previews.ts` — очередь и ограниченный кэш снимков;
   `src/preview-view.ts` — отложенный запрос и отображение preview.
 - `src/browser.d.ts` — используемая поверхность WebExtensions API;

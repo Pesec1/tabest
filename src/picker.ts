@@ -1,25 +1,26 @@
 import './style.css';
-import type { Action, Mode, Reply, Request, Settings, Snapshot, TabFilter } from './model.ts';
+import type { Action, Mode, Reply, Request, Settings, Snapshot, TabFilter, TabItem } from './model.ts';
 import { defaultSettings, eventKey, KeyResolver, readSettings, validateKeymap } from './keys.ts';
 import { searchTabs } from './search.ts';
 import type { SearchResult } from './search.ts';
 import { demoSnapshot } from './demo.ts';
 import { PreviewView } from './preview-view.ts';
 import { filterTabs, readTabFilter } from './filters.ts';
+import { actionHints } from './action-hints.ts';
 
 const extension = typeof browser !== 'undefined' && Boolean(browser.runtime?.id);
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <header class="topbar">
     <a class="brand" href="#" aria-label="Tabest home"><span class="brand-icon">⌕</span> tabest<span class="brand-divider">/</span><span class="brand-section">tabs</span></a>
-    <div class="top-actions"><span id="context" class="context"></span><button id="settings-button" class="quiet">Settings <span>↗</span></button></div>
+    <div class="top-actions"><span id="context" class="context"></span><button id="layout-button" class="quiet" aria-pressed="true" title="Toggle compact layout">Compact</button><button id="preview-button" class="quiet" aria-pressed="true" title="Toggle page preview">Preview</button><button id="settings-button" class="quiet">Settings <span>↗</span></button></div>
   </header>
   <main>
     <div class="intro"><div><p class="eyebrow">YOUR BROWSER, WITHIN REACH</p><h1>A little less searching.<br><span>A little more flow.</span></h1></div><span class="session-label"><span class="live-dot"></span> LOCAL SESSION</span></div>
     <section class="workspace" aria-label="Tab picker">
       <div class="search-column">
         <div class="panel prompt-panel"><div class="panel-label"><label for="query">Find a tab</label><span id="query-count"></span></div><div class="prompt-line"><span class="prompt-symbol" aria-hidden="true">❯</span><input id="query" type="text" placeholder="Search titles and URLs…" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="results" /><kbd id="mode-indicator">INSERT</kbd></div></div>
-        <div class="panel results-panel"><div class="panel-label results-heading"><span>Results <span id="result-count" class="count"></span></span><div class="result-filters"><div class="scope-control" role="group" aria-label="Search scope"><button id="scope-all">All windows</button><button id="scope-window">This window</button></div><div class="scope-control tab-filter" role="group" aria-label="Tab filter"><button id="filter-all">All tabs <kbd class="filter-key"></kbd></button><button id="filter-pinned">Pinned <kbd class="filter-key"></kbd></button></div></div></div><div id="results" role="listbox" aria-label="Open tabs" aria-multiselectable="true"></div><div class="results-bottom"><span id="selection-count">No tabs marked</span><span>FUZZY FINDER</span></div></div>
+        <div class="panel results-panel"><div class="panel-label results-heading"><span>Results <span id="result-count" class="count"></span></span><div class="result-filters"><div class="scope-control" role="group" aria-label="Search scope"><button id="scope-all">All windows</button><button id="scope-window">This window</button></div><div class="scope-control tab-filter" role="group" aria-label="Tab filter"><button id="filter-all">All tabs <kbd class="filter-key"></kbd></button><button id="filter-pinned">Pinned <kbd class="filter-key"></kbd></button></div></div></div><div id="results" role="listbox" aria-label="Open tabs" aria-multiselectable="true"></div><div class="results-bottom"><span id="selection-count">No tabs marked</span><div id="action-hints" aria-label="Available keyboard actions"></div></div></div>
       </div>
       <aside class="panel preview-panel" aria-label="Selected tab preview"><div class="panel-label"><span>Preview</span><span id="preview-index"></span></div><div id="preview"></div></aside>
     </section>
@@ -125,6 +126,20 @@ function node(tag: string, className: string, text?: string): HTMLElement {
   return element;
 }
 
+function tabIcon(tab: TabItem, className: string): HTMLElement {
+  const icon = node('span', className, domain(tab.url).charAt(0).toUpperCase());
+  icon.setAttribute('aria-hidden', 'true');
+  // Use the browser-provided icon; never guess URLs or contact an icon service.
+  if (tab.favIconUrl && /^(https?:|data:image\/|moz-anno:favicon:|moz-extension:)/i.test(tab.favIconUrl)) {
+    const image = document.createElement('img');
+    image.alt = '';
+    image.referrerPolicy = 'no-referrer';
+    image.addEventListener('load', () => icon.replaceChildren(image), { once: true });
+    image.src = tab.favIconUrl;
+  }
+  return icon;
+}
+
 function render(): void {
   const tabs = filterTabs(snapshot.tabs, snapshot.windowId, scope, tabFilter);
   // Never keep destructive selections hidden by a scope/filter change.
@@ -159,7 +174,7 @@ function render(): void {
     row.setAttribute('role', 'option');
     row.setAttribute('aria-label', `${tab.title}, ${tab.url}${marks.has(tab.id) ? ', marked' : ''}`);
     row.append(node('span', 'result-pointer', '›'));
-    row.append(node('span', 'tab-icon', domain(tab.url).charAt(0).toUpperCase()));
+    row.append(tabIcon(tab, 'tab-icon'));
     const content = node('div', 'result-content');
     const title = node('div', 'result-title');
     title.append(highlighted(tab.title, result.titlePositions));
@@ -192,6 +207,14 @@ function updateSelection(): void {
   else input.removeAttribute('aria-activedescendant');
   el('selection-count').textContent = marks.size ? `${marks.size} tab${marks.size === 1 ? '' : 's'} marked` : 'No tabs marked';
   const index = results.findIndex(result => result.tab.id === selectedId);
+  const selected = results[index]?.tab;
+  const hints = el('action-hints');
+  hints.replaceChildren();
+  for (const hint of actionHints(settings, mode, marks.size, Boolean(selected), Boolean(selected?.pinned), selectedId !== undefined && marks.has(selectedId))) {
+    const item = node('span', 'action-hint');
+    item.append(node('kbd', '', hint.key), document.createTextNode(hint.label));
+    hints.append(item);
+  }
   el('preview-index').textContent = index >= 0 ? `${index + 1} / ${results.length}` : '—';
   // Only scroll the list: scrollIntoView can also move the whole page when
   // navigating a long list near the bottom of the viewport.
@@ -208,13 +231,14 @@ function updateSelection(): void {
 function renderPreview(result?: SearchResult): void {
   const preview = el('preview');
   preview.replaceChildren();
+  if (!settings.showPreview) { pagePreview.invalidate(); return; }
   if (!result) {
     pagePreview.invalidate();
     preview.append(node('p', 'preview-empty', 'Your next destination will appear here.')); return;
   }
   const { tab } = result;
   const identity = node('div', 'preview-identity');
-  identity.append(node('span', 'preview-icon', domain(tab.url).charAt(0).toUpperCase()), node('span', 'preview-domain', domain(tab.url)));
+  identity.append(tabIcon(tab, 'preview-icon'), node('span', 'preview-domain', domain(tab.url)));
   const title = node('h2', 'preview-title');
   title.title = tab.title;
   title.append(highlighted(tab.title, result.titlePositions));
@@ -276,6 +300,7 @@ function setMode(next: Mode): void {
   el('status-mode').textContent = mode.toUpperCase();
   document.documentElement.dataset.mode = mode;
   renderFilterHints();
+  updateSelection();
   input.focus({ preventScroll: true });
   message(mode === 'normal' ? 'j / k to navigate · i to type · Esc to return' : 'Start typing to find your next tab.');
 }
@@ -344,13 +369,34 @@ function showHelp(): void {
 }
 
 function fillSettings(value: Settings): void {
+  el('settings-form').dataset.layout = value.layout;
+  el('settings-form').dataset.preview = String(value.showPreview);
   el<HTMLSelectElement>('theme').value = value.theme;
   el<HTMLSelectElement>('default-scope').value = value.scope;
   el<HTMLTextAreaElement>('keymap').value = JSON.stringify(value.keymap, null, 2);
   el('settings-error').textContent = '';
 }
 
-function applyTheme(): void { document.documentElement.dataset.theme = settings.theme; }
+function applyTheme(): void {
+  document.documentElement.dataset.theme = settings.theme;
+  document.documentElement.dataset.layout = settings.layout;
+  document.documentElement.dataset.preview = String(settings.showPreview);
+  el('layout-button').setAttribute('aria-pressed', String(settings.layout === 'compact'));
+  el('preview-button').setAttribute('aria-pressed', String(settings.showPreview));
+}
+
+async function toggleView(field: 'layout' | 'showPreview'): Promise<void> {
+  const next = { ...settings };
+  if (field === 'layout') next.layout = next.layout === 'compact' ? 'comfortable' : 'compact';
+  else next.showPreview = !next.showPreview;
+  try {
+    if (extension) await browser.storage.local.set({ settings: next });
+    else localStorage.setItem('telescope-settings', JSON.stringify(next));
+    settings = next;
+    applyTheme(); render();
+  } catch { message('Could not save view preferences.', true); }
+  input.focus({ preventScroll: true });
+}
 
 input.addEventListener('input', () => { selectedId = undefined; render(); });
 document.addEventListener('keydown', event => {
@@ -375,6 +421,8 @@ el('scope-window').addEventListener('click', () => { scope = 'window'; render();
 el('filter-all').addEventListener('click', () => { setTabFilter('all'); input.focus({ preventScroll: true }); });
 el('filter-pinned').addEventListener('click', () => { setTabFilter('pinned'); input.focus({ preventScroll: true }); });
 el('help-button').addEventListener('click', showHelp);
+el('layout-button').addEventListener('click', () => void toggleView('layout'));
+el('preview-button').addEventListener('click', () => void toggleView('showPreview'));
 el('settings-button').addEventListener('click', () => { fillSettings(settings); settingsDialog.showModal(); });
 el('reset-settings').addEventListener('click', () => fillSettings(defaultSettings));
 el('shortcut-settings').addEventListener('click', () => {
@@ -390,7 +438,7 @@ el('settings-form').addEventListener('submit', async event => {
   try {
     const keymap: unknown = JSON.parse(el<HTMLTextAreaElement>('keymap').value);
     if (!validateKeymap(keymap)) throw new Error('Expected insert and normal objects mapping keys to known actions.');
-    const next = readSettings({ keymapVersion: 2, theme: el<HTMLSelectElement>('theme').value, scope: el<HTMLSelectElement>('default-scope').value, keymap });
+    const next = readSettings({ ...settings, layout: el('settings-form').dataset.layout, showPreview: el('settings-form').dataset.preview !== 'false', keymapVersion: 2, theme: el<HTMLSelectElement>('theme').value, scope: el<HTMLSelectElement>('default-scope').value, keymap });
     if (extension) await browser.storage.local.set({ settings: next });
     else localStorage.setItem('telescope-settings', JSON.stringify(next));
     settings = next;
@@ -411,7 +459,7 @@ if (extension) {
   });
   browser.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
-    if (changes.settings) { settings = readSettings(changes.settings.newValue); applyTheme(); renderFilterHints(); }
+    if (changes.settings) { settings = readSettings(changes.settings.newValue); applyTheme(); render(); }
     if (changes.tabFilter) { tabFilter = readTabFilter(changes.tabFilter.newValue); render(); }
   });
   document.addEventListener('visibilitychange', () => {

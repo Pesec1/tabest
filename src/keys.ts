@@ -16,7 +16,7 @@ export const defaultKeymap: Keymap = {
   },
 };
 
-export const defaultSettings: Settings = { keymapVersion: 2, scope: 'all', theme: 'dark', keymap: defaultKeymap };
+export const defaultSettings: Settings = { keymapVersion: 2, scope: 'all', theme: 'dark', layout: 'compact', showPreview: true, keymap: defaultKeymap };
 const actions = new Set<Action>([
   'next', 'previous', 'accept', 'cancel', 'normal', 'insert', 'first', 'last',
   'markNext', 'markPrevious', 'close', 'help', 'scope', 'pin', 'allTabs', 'pinnedTabs',
@@ -47,6 +47,8 @@ export function readSettings(value: unknown): Settings {
     keymapVersion: 2,
     scope: settings?.scope === 'window' ? 'window' : 'all',
     theme: ['dark', 'light', 'system'].includes(settings?.theme ?? '') ? settings!.theme! : 'dark',
+    layout: settings?.layout === 'comfortable' ? 'comfortable' : 'compact',
+    showPreview: settings?.showPreview !== false,
     keymap,
   };
 }

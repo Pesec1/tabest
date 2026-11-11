@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Tabest — Fuzzy Tab Finder** · Updated November 8, 2026
+**Tabest — Fuzzy Tab Finder** · Updated November 11, 2026
 
 This notice describes the current implementation. A public support contact and
 repository URL have not been supplied; add them when publishing the project.
@@ -10,6 +10,11 @@ repository URL have not been supplied; add them when publishing the project.
 The extension uses open-tab titles, URLs, identifiers, window identifiers, and
 tab state to display and search the picker. State can include pinning, audio,
 container, and discarded status. Search terms are processed locally in the picker.
+
+Site icons use favicon addresses provided by the browser. Loading a remote icon
+may make a normal image request to that address, subject to the browser's cache
+and access rules; the picker omits the referrer. No third-party favicon lookup
+service is used. Missing or failed icons show a domain initial instead.
 
 When a selected result can be previewed and the relevant permission is granted,
 the extension requests a screenshot through the browser's tab-capture API.
@@ -24,7 +29,7 @@ inject content scripts into websites or download executable code.
 
 | Location | Contents | Lifetime |
 | --- | --- | --- |
-| `browser.storage.local` | Theme, default window scope, custom keybindings, and selected tab filter. | Retained between browser sessions until preferences or extension data are cleared. |
+| `browser.storage.local` | Theme, compact/spacious layout, preview visibility, default window scope, custom keybindings, and selected tab filter. | Retained between browser sessions until preferences or extension data are cleared. |
 | `browser.storage.session` | Picker/origin tab IDs, per-tab recency timestamps, and tracked picker/closed IDs. | Browser-session storage; may survive a background restart within that session. |
 | Extension memory and picker DOM | Tab metadata, current query, selected/marked results, and bounded preview caches. | Temporary application state, not intentionally written to persistent extension storage. |
 

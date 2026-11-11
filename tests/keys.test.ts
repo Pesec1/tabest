@@ -72,3 +72,16 @@ test('versioned maps may omit filter bindings or assign them elsewhere', () => {
   assert.equal(readSettings({ keymap }).keymap.normal.l, undefined);
   assert.equal(validateKeymap(keymap), true);
 });
+
+test('view preferences default safely and preserve existing custom settings', () => {
+  const legacy = { theme: 'light', scope: 'window', keymapVersion: 2, keymap: { insert: {}, normal: { x: 'close' } } };
+  const settings = readSettings(legacy);
+  assert.equal(settings.layout, 'compact');
+  assert.equal(settings.showPreview, true);
+  assert.deepEqual(settings.keymap, legacy.keymap);
+  assert.equal(settings.theme, 'light');
+  assert.equal(settings.scope, 'window');
+  assert.equal(readSettings({ ...legacy, layout: 'comfortable', showPreview: false }).layout, 'comfortable');
+  assert.equal(readSettings({ ...legacy, showPreview: false }).showPreview, false);
+  assert.equal(readSettings({ layout: 'invalid', showPreview: 'invalid' }).showPreview, true);
+});

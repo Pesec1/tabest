@@ -170,6 +170,7 @@ export class TabController {
     ).map(tab => ({
       id: tab.id!, windowId: tab.windowId, title: tab.title || tab.url || 'Untitled',
       url: tab.url ?? '', lastUsed: this.recency[tab.id!] ?? tab.lastAccessed ?? 0,
+      favIconUrl: tab.favIconUrl,
       pinned: tab.pinned, audible: Boolean(tab.audible), muted: Boolean(tab.mutedInfo?.muted),
       discarded: Boolean(tab.discarded), origin: tab.id === originId,
       container: tab.cookieStoreId && tab.cookieStoreId !== 'firefox-default' ? tab.cookieStoreId : undefined,

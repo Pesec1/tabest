@@ -14,14 +14,14 @@ export const defaultKeymap: Keymap = {
     'Alt+Enter': 'launchQuery',
     gg: 'first', G: 'last', Home: 'first', End: 'last',
     Tab: 'markNext', 'Shift+Tab': 'markPrevious', dd: 'close',
-    '?': 'help', w: 'scope', p: 'pin', h: 'allTabs', l: 'pinnedTabs',
+    '?': 'help', w: 'scope', p: 'pin', h: 'allTabs', l: 'pinnedTabs', s: 'switchSession', m: 'moveSession',
   },
 };
 
-export const defaultSettings: Settings = { keymapVersion: 3, scope: 'all', theme: 'dark', layout: 'compact', showPreview: true, historySuggestions: false, keymap: defaultKeymap };
+export const defaultSettings: Settings = { keymapVersion: 4, scope: 'all', theme: 'dark', layout: 'compact', showPreview: true, historySuggestions: false, keymap: defaultKeymap };
 const actions = new Set<Action>([
   'next', 'previous', 'accept', 'cancel', 'normal', 'insert', 'first', 'last',
-  'markNext', 'markPrevious', 'close', 'help', 'scope', 'pin', 'allTabs', 'pinnedTabs', 'launchQuery',
+  'markNext', 'markPrevious', 'close', 'help', 'scope', 'pin', 'allTabs', 'pinnedTabs', 'launchQuery', 'switchSession', 'moveSession',
 ]);
 
 export function validateKeymap(value: unknown): value is Keymap {
@@ -53,8 +53,14 @@ export function readSettings(value: unknown): Settings {
         !Object.values(keymap[mode]).includes('launchQuery')) keymap[mode][key] = 'launchQuery';
     }
   }
+  if (version < 4) {
+    for (const [key, action] of [['s', 'switchSession'], ['m', 'moveSession']] as const) {
+      if (!Object.keys(keymap.normal).some(binding => binding.startsWith(key) || key.startsWith(binding)) &&
+        !Object.values(keymap.normal).includes(action)) keymap.normal[key] = action;
+    }
+  }
   return {
-    keymapVersion: 3,
+    keymapVersion: 4,
     scope: settings?.scope === 'window' ? 'window' : 'all',
     theme: ['dark', 'light', 'system'].includes(settings?.theme ?? '') ? settings!.theme! : 'dark',
     layout: settings?.layout === 'comfortable' ? 'comfortable' : 'compact',

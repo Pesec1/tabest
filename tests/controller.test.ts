@@ -72,6 +72,33 @@ function fixture(closeTimeout = 3000) {
   return { controller, tabs, api, getFocused: () => focusedWindow, getPicker: () => tabs.find(tab => tab.url === url)! };
 }
 
+test('history creation assigns a destination only when it creates a new tab', async () => {
+  const f = fixture(); const assigned: number[] = [];
+  const controller = new TabController(f.api, 3000, async tab => { assigned.push(tab.id!); });
+  await controller.initialize(); await controller.toggle(1);
+  await controller.openHistory('https://new.example/session', f.getPicker());
+  assert.equal(assigned.length, 1);
+  await controller.openHistory('https://new.example/session#section', f.getPicker());
+  assert.equal(assigned.length, 1);
+  assert.equal(f.tabs.find(tab => tab.id === assigned[0])?.active, true);
+});
+
+test('acceptance callback runs only after a successful selection, including existing history targets', async () => {
+  const f = fixture(); const accepted: { id: number; caller: number }[] = [];
+  const controller = new TabController(f.api, 3000, undefined, async (tab, caller) => {
+    assert.equal(tab.active, true);
+    accepted.push({ id: tab.id!, caller });
+  });
+  await controller.initialize(); await controller.toggle(1);
+  await controller.request({ type: 'select', id: 2 }, f.getPicker());
+  await controller.openHistory('https://example.org/#section', f.getPicker());
+  assert.deepEqual(accepted, [{ id: 2, caller: 1 }, { id: 1, caller: 1 }]);
+  await assert.rejects(controller.request({ type: 'select', id: 4 }, f.getPicker()));
+  f.api.tabs.update = async () => { throw new Error('Cannot activate'); };
+  await assert.rejects(controller.request({ type: 'select', id: 2 }, f.getPicker()), /Cannot activate/);
+  assert.equal(accepted.length, 2, 'Failed selection must not change session membership');
+});
+
 test('opening an explicit history result creates a tab or selects an already open matching page', async () => {
   const { controller, tabs, getPicker } = fixture();
   await controller.initialize(); await controller.toggle(1);

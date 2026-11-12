@@ -11,6 +11,7 @@ const filters = process.argv.includes('--filters');
 const ui = process.argv.includes('--ui');
 const suggestions = process.argv.includes('--suggestions');
 const query = process.argv.includes('--query');
+const sessions = process.argv.includes('--sessions');
 const installedBinary = realpathSync(process.argv.slice(2).find(arg => !arg.startsWith('--')) ?? process.env.TABEST_ZEN_BINARY ?? process.env.TELESCOPE_ZEN_BINARY ?? '/opt/zen-browser-bin/zen');
 const temporary = mkdtempSync(join(tmpdir(), 'tabest-zen-test-'));
 const installation = join(temporary, 'browser');
@@ -27,6 +28,7 @@ writeFileSync(join(preferences, 'tabest-test.js'), [
 ].join('\n'));
 const addonPath = join(temporary, 'addon');
 cpSync(resolve('dist'), addonPath, { recursive: true });
+writeFileSync(join(addonPath, 'session-fixture.html'), '<!doctype html><title>Session restore fixture</title><p>Synthetic session restore page.</p>');
 const previewPath = join(temporary, 'preview.html');
 writeFileSync(previewPath, '<!doctype html><title>Preview fixture</title><style>body{margin:0;background:#14251e;color:#fff;font:32px sans-serif}header{background:#bf6c45;padding:50px}main{padding:60px;display:flex;gap:30px}section{width:200px;height:250px;background:#a7c989}section+section{background:#e6c278}</style><header>Real tab screenshot</header><main><section>One</section><section>Two</section></main>');
 const previewUrl = pathToFileURL(previewPath).href;
@@ -46,9 +48,10 @@ writeFileSync(join(addonPath, 'ui-probe.js'), readFileSync(new URL('./zen-ui-pro
   .replace('__TABEST_UI_URL__', JSON.stringify(previewUrl)));
 writeFileSync(join(addonPath, 'suggestions-probe.js'), readFileSync(new URL('./zen-suggestions-probe.js', import.meta.url), 'utf8'));
 writeFileSync(join(addonPath, 'query-probe.js'), readFileSync(new URL('./zen-query-probe.js', import.meta.url), 'utf8'));
-writeFileSync(pickerPath, readFileSync(pickerPath, 'utf8').replace('</body>', `<script type="module" src="./${query ? 'query' : suggestions ? 'suggestions' : ui ? 'ui' : filters ? 'filter' : deletion ? 'delete' : 'preview'}-probe.js"></script></body>`));
-const options = { addonPath, resultPath, previewUrl, fixtures, ui, suggestions, query };
-const harness = readFileSync(new URL(filters || ui || suggestions || query ? './zen-filter-harness.js' : deletion ? './zen-delete-harness.js' : './zen-harness.js', import.meta.url), 'utf8')
+writeFileSync(join(addonPath, 'sessions-probe.js'), readFileSync(new URL('./zen-sessions-probe.js', import.meta.url), 'utf8'));
+writeFileSync(pickerPath, readFileSync(pickerPath, 'utf8').replace('</body>', `<script type="module" src="./${sessions ? 'sessions' : query ? 'query' : suggestions ? 'suggestions' : ui ? 'ui' : filters ? 'filter' : deletion ? 'delete' : 'preview'}-probe.js"></script></body>`));
+const options = { addonPath, resultPath, previewUrl, fixtures, ui, suggestions, query, sessions };
+const harness = readFileSync(new URL(filters || ui || suggestions || query || sessions ? './zen-filter-harness.js' : deletion ? './zen-delete-harness.js' : './zen-harness.js', import.meta.url), 'utf8')
   .replace('__TABEST_TEST_OPTIONS__', JSON.stringify(options));
 writeFileSync(join(installation, 'config.js'), harness);
 const child = spawn(join(installation, 'zen'), ['--headless', '--no-remote', '--profile', profile, 'about:blank'], {
@@ -71,7 +74,8 @@ try {
     await wait(100);
   }
   if (!report?.done || !report.passed) throw new Error(report?.error ?? 'Zen integration check timed out');
-  console.log(query ? 'PASS: native Alt+Enter address opening and browser-default search, Enter preservation, Normal mode, click, custom keys and narrow layout.' : suggestions ? 'PASS: real history suggestions, permission denial/grant/revocation, ranking, stable selection, threshold, keyboard opening, deletion and narrow layout.' : ui ? 'PASS: compact layout, preview toggle, browser favicons, contextual/custom keyboard hints and view persistence.' : filters ? 'PASS: pinned filter keyboard/mouse controls, selection/query preservation, safe marks, persistence, unpinning and responsive layout.' : deletion ? 'PASS: deletion through the UI stays deleted after selection, reopening and creating a fresh picker.' : `PASS: real screenshot and fallbacks fit without scrolling at three sizes; 20 native Ctrl+Shift+Space presses, focus restoration and duplicate cleanup.`);
+  if (!sessions) console.log(query ? 'PASS: native Alt+Enter address opening and browser-default search, Enter preservation, Normal mode, click, custom keys and narrow layout.' : suggestions ? 'PASS: real history suggestions, permission denial/grant/revocation, ranking, stable selection, threshold, keyboard opening, deletion and narrow layout.' : ui ? 'PASS: compact layout, preview toggle, browser favicons, contextual/custom keyboard hints and view persistence.' : filters ? 'PASS: pinned filter keyboard/mouse controls, selection/query preservation, safe marks, persistence, unpinning and responsive layout.' : deletion ? 'PASS: deletion through the UI stays deleted after selection, reopening and creating a fresh picker.' : `PASS: real screenshot and fallbacks fit without scrolling at three sizes; 20 native Ctrl+Shift+Space presses, focus restoration and duplicate cleanup.`);
+  if (sessions) console.log('PASS: session creation, bulk moves, global search, automatic assignment, restore, private storage and narrow layout.');
   console.log(`Report: ${resultPath}`);
 } catch (error) {
   console.error(error.message);

@@ -17,10 +17,12 @@ export function demoSnapshot(): Snapshot {
   ] as const;
   return {
     windowId: 1, private: false,
+    workSessions: { sessions: [{ id: 'work', name: 'Work' }], activeSessionId: 'all', autoAssign: true },
     tabs: entries.map(([title, url, windowId], i) => ({
       id: i + 1, windowId, title, url, lastUsed: Date.now() - i * 180_000,
       pinned: i === 0, audible: i === 6, muted: false, discarded: i === 10,
       origin: i === 3,
+      sessionIds: i < 5 ? ['work'] : [],
     })),
   };
 }

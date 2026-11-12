@@ -31,8 +31,8 @@ declare namespace browser {
     const onActivated: BrowserEvent<(info: { tabId: number; windowId: number }) => void>;
     const onRemoved: BrowserEvent<(tabId: number) => void>;
     const onUpdated: BrowserEvent<(tabId: number, changes: { url?: string; status?: string; discarded?: boolean }) => void>;
-    const onCreated: BrowserEvent<() => void>;
-    const onAttached: BrowserEvent<() => void>;
+    const onCreated: BrowserEvent<(tab: Tab) => void>;
+    const onAttached: BrowserEvent<(tabId: number) => void>;
     const onDetached: BrowserEvent<() => void>;
   }
   namespace windows {
@@ -40,6 +40,13 @@ declare namespace browser {
     function get(id: number): Promise<Window>;
     function getLastFocused(): Promise<Window>;
     function update(id: number, changes: { focused: boolean }): Promise<Window>;
+    const onRemoved: BrowserEvent<(windowId: number) => void>;
+  }
+  namespace sessions {
+    function getTabValue(id: number, key: string): Promise<unknown>;
+    function setTabValue(id: number, key: string, value: unknown): Promise<void>;
+    function getWindowValue(id: number, key: string): Promise<unknown>;
+    function setWindowValue(id: number, key: string, value: unknown): Promise<void>;
   }
   namespace storage {
     interface Area {

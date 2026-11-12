@@ -1,7 +1,7 @@
 import './style.css';
-import type { Action, HistorySuggestion, Mode, Reply, Request, Settings, Snapshot, TabFilter, TabItem } from './model.ts';
+import type { Action, HistorySuggestion, Mode, Reply, Request, Settings, Snapshot, TabFilter, TabItem, WorkSession } from './model.ts';
 import { defaultSettings, eventKey, KeyResolver, readSettings, validateKeymap } from './keys.ts';
-import { searchTabs } from './search.ts';
+import { fuzzyMatch, searchTabs } from './search.ts';
 import type { SearchResult } from './search.ts';
 import { demoSnapshot } from './demo.ts';
 import { PreviewView } from './preview-view.ts';
@@ -10,6 +10,7 @@ import { actionHints } from './action-hints.ts';
 import { SuggestionSearch } from './suggestion-search.ts';
 import { historyUrl } from './history-suggestions.ts';
 import { queryAction } from './query-action.ts';
+import { ALL_SESSIONS } from './work-sessions.ts';
 
 const extension = typeof browser !== 'undefined' && Boolean(browser.runtime?.id);
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -35,7 +36,13 @@ app.innerHTML = `
 `;
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T { return document.getElementById(id) as T; }
+el('query').closest('.prompt-panel')!.querySelector('label')!.insertAdjacentHTML('afterend', `
+  <button id="sessions-button" class="session-switch" type="button" aria-expanded="false" aria-controls="results">Sessions ▾</button>
+`);
+app.insertAdjacentHTML('beforeend', `<dialog id="session-name-dialog"><form id="session-name-form"><div class="dialog-heading"><h2>Rename session</h2><button type="button" class="dialog-close quiet" aria-label="Cancel rename">✕</button></div><label for="session-name">Session name</label><input id="session-name" maxlength="80" required autocomplete="off" /><p id="session-name-error" class="error" role="alert"></p><div class="dialog-actions"><button type="submit" class="primary">Save name</button></div></form></dialog>`);
 el('settings-form').insertAdjacentHTML('afterbegin', `
+  <div class="settings-row"><label for="session-auto">Add new tabs to sessions automatically</label><input id="session-auto" type="checkbox" /></div>
+  <p class="muted">New tabs join the current session; links opened in new tabs inherit the source session. Existing tabs stay where you put them. Private sessions are temporary and separate.</p>
   <div class="settings-row"><label for="history-suggestions">Suggest visited sites</label><input id="history-suggestions" type="checkbox" /></div>
   <p class="muted">When fewer than 5 open tabs match, suggest up to 5 visited pages. Uses local browsing history with your permission; unavailable in private windows.</p>
 `);
@@ -46,10 +53,15 @@ const input = el<HTMLInputElement>('query');
 const resultsNode = el('results');
 const helpDialog = el<HTMLDialogElement>('help-dialog');
 const settingsDialog = el<HTMLDialogElement>('settings-dialog');
+const sessionNameDialog = el<HTMLDialogElement>('session-name-dialog');
+let renameSessionId = '';
 let settings: Settings = structuredClone(defaultSettings);
 let snapshot: Snapshot = { tabs: [], windowId: 0, private: false };
 let results: SearchResult[] = [];
-let choices: { id: number | string; tab?: SearchResult; history?: HistorySuggestion }[] = [];
+let choices: { id: number | string; tab?: SearchResult; history?: HistorySuggestion; session?: WorkSession; create?: string; allSessions?: boolean }[] = [];
+let sessionMode: 'switch' | 'move' | undefined;
+let sessionMoveIds: number[] = [];
+let savedSearch = { query: '', selectedId: undefined as number | string | undefined, mode: 'insert' as Mode };
 let selectedId: number | string | undefined;
 let marks = new Set<number>();
 let mode: Mode = 'insert';
@@ -80,9 +92,29 @@ function message(text: string, error = false): void {
 
 async function request(payload: Request): Promise<Snapshot | undefined> {
   if (!extension) {
-    if (payload.type === 'launch-query') {
+    if (payload.type.startsWith('session-')) {
+      const state = snapshot.workSessions!;
+      if (payload.type === 'session-create') {
+        if (state.sessions.some(session => session.name.toLowerCase() === payload.name.trim().toLowerCase())) throw new Error('A session with this name already exists.');
+        const id = crypto.randomUUID(); state.sessions.push({ id, name: payload.name.trim() }); state.activeSessionId = id;
+        for (const tab of snapshot.tabs) if (payload.ids.includes(tab.id)) tab.sessionIds = [id];
+      } else if (payload.type === 'session-switch') state.activeSessionId = payload.sessionId;
+      else if (payload.type === 'session-move') { for (const tab of snapshot.tabs) if (payload.ids.includes(tab.id)) tab.sessionIds = payload.sessionId === ALL_SESSIONS ? [] : [payload.sessionId]; }
+      else if (payload.type === 'session-rename') { const session = state.sessions.find(session => session.id === payload.sessionId); if (session) session.name = payload.name.trim(); }
+      else if (payload.type === 'session-delete') {
+        state.sessions = state.sessions.filter(session => session.id !== payload.sessionId);
+        for (const tab of snapshot.tabs) tab.sessionIds = tab.sessionIds?.filter(id => id !== payload.sessionId);
+        if (state.activeSessionId === payload.sessionId) state.activeSessionId = ALL_SESSIONS;
+      } else if (payload.type === 'session-auto') state.autoAssign = payload.enabled;
+      else message('Preview mode. Load the extension to open new tabs.');
+    } else if (payload.type === 'launch-query') {
       message('Preview mode. Load the extension to open an address or search the web.');
     } else if (payload.type === 'select' || payload.type === 'return') {
+      if (payload.type === 'select') {
+        const tab = snapshot.tabs.find(tab => tab.id === payload.id);
+        const id = snapshot.workSessions?.activeSessionId;
+        if (tab && id && id !== ALL_SESSIONS) tab.sessionIds = [...new Set([...(tab.sessionIds ?? []), id])];
+      }
       message('Preview mode. Load the extension in Firefox to switch real tabs.');
     } else if (payload.type === 'close') snapshot.tabs = snapshot.tabs.filter(tab => !payload.ids.includes(tab.id));
     else if (payload.type === 'pin') {
@@ -159,8 +191,141 @@ function tabIcon(tab: TabItem, className: string): HTMLElement {
   return icon;
 }
 
+function openSessions(next: 'switch' | 'move'): void {
+  if (busy) return;
+  sessionMoveIds = next === 'move' ? (marks.size ? [...marks] : typeof selectedId === 'number' ? [selectedId] : []) : [];
+  if (next === 'move' && !sessionMoveIds.length) { message('Select or mark an open tab first.'); return; }
+  savedSearch = { query: input.value, selectedId, mode };
+  sessionMode = next;
+  input.value = '';
+  const activeId = snapshot.workSessions?.activeSessionId ?? ALL_SESSIONS;
+  selectedId = activeId === ALL_SESSIONS ? 'all-sessions' : `session:${activeId}`;
+  historySearch.reset();
+  render(); setMode('insert');
+  message(next === 'move' ? 'Choose a destination, or type a name to create a session.' : 'Choose a session, or type a name to create one.');
+}
+
+function leaveSessions(): void {
+  sessionMode = undefined;
+  input.value = savedSearch.query;
+  selectedId = savedSearch.selectedId;
+  render(); setMode(savedSearch.mode);
+}
+
+async function sessionAction(payload: Request): Promise<void> {
+  if (busy) throw new Error('Wait for the current action to finish.');
+  busy = true; ++refreshGeneration;
+  try {
+    const updated = await request(payload);
+    if (updated) snapshot = updated;
+    render();
+  } catch (error) { message(error instanceof Error ? error.message : String(error), true); throw error; }
+  finally { busy = false; updateQueryAction(); }
+}
+
+async function acceptSession(): Promise<void> {
+  const choice = choices.find(choice => choice.id === selectedId);
+  if (!choice) return;
+  if (choice.create === '') { input.focus(); message('Type a name, then choose Create session.'); return; }
+  try {
+    if (choice.allSessions) {
+      await sessionAction(sessionMode === 'move' ? { type: 'session-move', sessionId: ALL_SESSIONS, ids: sessionMoveIds } : { type: 'session-switch', sessionId: ALL_SESSIONS });
+    }
+    else if (choice.create !== undefined) {
+      await sessionAction({ type: 'session-create', name: choice.create, ids: sessionMode === 'move' ? sessionMoveIds : [] });
+    } else if (choice.session) {
+      if (sessionMode === 'move') await sessionAction({ type: 'session-move', sessionId: choice.session.id, ids: sessionMoveIds });
+      else {
+        await sessionAction({ type: 'session-switch', sessionId: choice.session.id });
+      }
+    }
+    const moved = sessionMode === 'move';
+    if (moved) marks.clear();
+    leaveSessions();
+    message(moved ? (choice.allSessions ? 'Session assignment removed. Tabs stay open in All sessions.' : 'Tabs moved to the session.') : choice.allSessions ? 'All sessions selected.' : 'Session selected. Type to search across all sessions.');
+  } catch { /* Keep the chooser and selection available for retry. */ }
+}
+
+function renameSession(session: WorkSession): void {
+  if (busy) return;
+  renameSessionId = session.id;
+  el<HTMLInputElement>('session-name').value = session.name;
+  el('session-name-error').textContent = '';
+  sessionNameDialog.showModal(); el<HTMLInputElement>('session-name').select();
+}
+
+async function deleteSession(session: WorkSession): Promise<void> {
+  if (!window.confirm(`Delete session “${session.name}”? Its tabs will stay open in All sessions.`)) return;
+  try { await sessionAction({ type: 'session-delete', sessionId: session.id }); }
+  catch { /* Error is visible in the status bar. */ }
+}
+
+function renderSessions(): void {
+  const state = snapshot.workSessions;
+  const query = input.value.trim().toLowerCase();
+  choices = (state?.sessions ?? []).filter(session => query.split(/\s+/).every(word => fuzzyMatch(session.name, word)))
+    .map(session => ({ id: `session:${session.id}`, session }));
+  if (query.split(/\s+/).every(word => fuzzyMatch('All sessions', word))) choices.unshift({ id: 'all-sessions', allSessions: true });
+  if (!query || (query !== 'all sessions' && !state?.sessions.some(session => session.name.toLowerCase() === query))) choices.push({ id: 'create-session', create: input.value.trim() });
+  if (!choices.some(choice => choice.id === selectedId)) selectedId = choices[0]?.id;
+  resultsNode.replaceChildren();
+  resultsNode.setAttribute('aria-label', sessionMode === 'move' ? 'Destination sessions' : 'Sessions');
+  resultsNode.setAttribute('aria-multiselectable', 'false');
+  el('query-count').textContent = `${state?.sessions.length ?? 0} sessions`;
+  el('result-count').textContent = String(choices.length).padStart(2, '0');
+  for (const [index, choice] of choices.entries()) {
+    const row = node('div', 'result session-result');
+    row.id = `session-row-${index}`; row.dataset.key = String(choice.id); row.setAttribute('role', 'option');
+    const session = choice.session;
+    const content = node('div', 'result-content');
+    const title = session?.name ?? (choice.allSessions ? 'All sessions' : choice.create ? `Create “${choice.create}”` : 'Create session…');
+    content.append(node('div', 'result-title', title), node('div', 'result-url', session ? `${snapshot.tabs.filter(tab => tab.sessionIds?.includes(session.id)).length} open tabs${session.id === state?.activeSessionId ? ' · current destination for new tabs' : ''}` : choice.allSessions ? (sessionMode === 'move' ? 'Remove all session assignments; keep tabs in the general list' : `${snapshot.tabs.length} open tabs across all sessions${state?.activeSessionId === ALL_SESSIONS ? ' · selected' : ''}`) : 'Type a new name and press Enter'));
+    row.append(node('span', 'result-pointer', '›'), node('span', 'tab-icon', choice.create !== undefined ? '+' : '▤'), content);
+    if (session) {
+      const actions = node('div', 'session-row-actions');
+      for (const [label, action] of [['Rename', () => renameSession(session)], ['Delete', () => void deleteSession(session)]] as const) {
+        const button = node('button', 'quiet', label); button.setAttribute('aria-label', `${label} ${session.name}`);
+        button.addEventListener('click', event => { event.stopPropagation(); action(); }); actions.append(button);
+      }
+      row.append(actions);
+    }
+    resultsNode.append(row);
+  }
+  updateSelection();
+}
+
+function renderSessionPreview(session?: WorkSession): void {
+  pagePreview.invalidate();
+  const preview = el('preview'); preview.replaceChildren();
+  if (!settings.showPreview) return;
+  const summary = node('div', 'preview-summary');
+  summary.append(node('span', 'preview-domain', 'SESSIONS'), node('h2', 'preview-title', session?.name ?? 'A space for your tabs'), node('p', 'preview-url', 'Sessions organize tabs inside Tabest. Your browser tabs stay in place.'));
+  const note = node('div', 'history-preview-note', sessionMode === 'move' ? 'Move replaces existing session assignments. Selecting a tab from search adds it to the current session while keeping its other sessions.' : 'Choose a session for new tabs. Type a name to create an empty session. Selecting a search result adds that tab to the current session.');
+  preview.append(summary, note);
+}
+
+el('session-name-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    await sessionAction({ type: 'session-rename', sessionId: renameSessionId, name: el<HTMLInputElement>('session-name').value });
+    sessionNameDialog.close();
+  } catch (error) { el('session-name-error').textContent = error instanceof Error ? error.message : String(error); }
+});
+
 function render(): void {
-  const tabs = filterTabs(snapshot.tabs, snapshot.windowId, scope, tabFilter);
+  const state = snapshot.workSessions;
+  const sessionBrowse = state?.activeSessionId === ALL_SESSIONS ? undefined : state?.activeSessionId;
+  const current = state?.sessions.find(session => session.id === state.activeSessionId);
+  el('sessions-button').textContent = `${current?.name ?? 'All sessions'} ▾`;
+  el('sessions-button').title = `${current ? `New tabs → ${current.name}` : 'All open tabs. New tabs have no session assignment'}${state?.autoAssign === false ? ' (auto-add off)' : ''}. Choose or create a session.`;
+  el('sessions-button').setAttribute('aria-expanded', String(Boolean(sessionMode)));
+  el('query').closest('.prompt-panel')!.querySelector('label')!.textContent = sessionMode ? (sessionMode === 'move' ? `Move ${sessionMoveIds.length} tab(s) to` : 'Choose a session') : input.value.trim() ? 'Find a tab · all sessions' : sessionBrowse ? `Tabs · ${state?.sessions.find(session => session.id === sessionBrowse)?.name}` : 'Find a tab · all sessions';
+  input.placeholder = sessionMode ? 'Find a session or type a new name…' : 'Search titles and URLs across sessions…';
+  document.documentElement.dataset.sessionPicker = String(Boolean(sessionMode));
+  if (sessionMode) { renderSessions(); return; }
+  resultsNode.setAttribute('aria-label', 'Open tabs');
+  resultsNode.setAttribute('aria-multiselectable', 'true');
+  const tabs = filterTabs(snapshot.tabs, snapshot.windowId, scope, tabFilter).filter(tab => input.value.trim() || !sessionBrowse || tab.sessionIds?.includes(sessionBrowse));
   // Never keep destructive selections hidden by a scope/filter change.
   const visibleIds = new Set(tabs.map(tab => tab.id));
   marks = new Set([...marks].filter(id => visibleIds.has(id)));
@@ -187,6 +352,14 @@ function render(): void {
   if (!choices.length) {
     const empty = node('div', 'empty');
     empty.append(node('span', 'empty-symbol', '⌕'), node('h2', '', tabFilter === 'pinned' ? 'No pinned tabs found' : 'No tabs found'), node('p', '', tabFilter === 'pinned' ? 'Try a shorter query, search all windows, or switch to All tabs.' : 'Try a shorter query or search all windows.'));
+    if (!input.value.trim() && sessionBrowse && tabFilter === 'all' && !tabs.length) {
+      empty.querySelector('h2')!.textContent = 'Your session starts here';
+      empty.querySelector('p')!.textContent = 'Open a new tab here, or type an address or search across all sessions.';
+      const open = node('button', 'primary', `New tab in ${current?.name ?? 'All sessions'}`);
+      open.id = 'empty-session-new-tab';
+      open.addEventListener('click', () => { void sessionAction({ type: 'session-new-tab' }).catch(() => {}); });
+      empty.append(open);
+    }
     resultsNode.append(empty);
     if (historySearch.state === 'loading') empty.querySelector('p')!.textContent = 'Looking for visited pages…';
     if (historySearch.state === 'error') empty.querySelector('p')!.textContent = 'History is unavailable. Check its permission in Settings.';
@@ -215,6 +388,8 @@ function render(): void {
     if (tab.pinned) badges.append(node('span', 'small-badge', 'PIN'));
     if (tab.audible) badges.append(node('span', 'small-badge', tab.muted ? 'MUTE' : '♫'));
     if (tab.origin) badges.append(node('span', 'small-badge', 'FROM'));
+    const sessionNames = state?.sessions.filter(session => tab.sessionIds?.includes(session.id)).map(session => session.name).join(' · ');
+    if (sessionNames) { const badge = node('span', 'session-badge', sessionNames); badge.title = sessionNames; badges.append(badge); }
     badges.append(node('span', 'window-badge', `W${tab.windowId}`));
     row.append(badges);
     fragment.append(row);
@@ -245,7 +420,7 @@ function updateSelection(): void {
     const selected = row.dataset.key === String(selectedId);
     row.classList.toggle('selected', selected);
     row.classList.toggle('marked', marks.has(Number(row.dataset.id)));
-    row.setAttribute('aria-selected', String(marks.has(Number(row.dataset.id))));
+    row.setAttribute('aria-selected', String(sessionMode ? selected : marks.has(Number(row.dataset.id))));
     row.setAttribute('data-active', String(selected));
   }
   const activeRow = resultsNode.querySelector<HTMLElement>('.result.selected');
@@ -255,6 +430,19 @@ function updateSelection(): void {
   const index = choices.findIndex(result => result.id === selectedId);
   const choice = choices[index];
   const selected = choice?.tab?.tab;
+  if (sessionMode) {
+    el('selection-count').textContent = sessionMode === 'move' ? `${sessionMoveIds.length} tab(s) to move` : 'Choose where new tabs go';
+    const binding = (action: Action) => Object.entries(settings.keymap[mode]).find(([, value]) => value === action)?.[0];
+    el('action-hints').replaceChildren(node('span', 'action-hint', `${binding('previous') ?? ''} / ${binding('next') ?? ''} Choose · ${binding('accept') ?? 'Click'} Confirm · Esc Back`));
+    el('preview-index').textContent = index >= 0 ? `${index + 1} / ${choices.length}` : '—';
+    renderSessionPreview(choice?.session);
+    if (activeRow) {
+      const row = activeRow.getBoundingClientRect(); const list = resultsNode.getBoundingClientRect();
+      if (row.top < list.top) resultsNode.scrollTop += row.top - list.top;
+      else if (row.bottom > list.bottom) resultsNode.scrollTop += row.bottom - list.bottom;
+    }
+    return;
+  }
   const hints = el('action-hints');
   hints.replaceChildren();
   const available = actionHints(settings, mode, choice?.history ? 0 : marks.size, Boolean(selected), Boolean(selected?.pinned), typeof selectedId === 'number' && marks.has(selectedId));
@@ -267,6 +455,10 @@ function updateSelection(): void {
     item.append(node('kbd', '', hint.key), document.createTextNode(hint.label));
     hints.append(item);
   }
+  const moveButton = node('button', 'quiet move-session-button', 'Move to session…');
+  moveButton.hidden = !marks.size && !selected;
+  moveButton.addEventListener('click', () => openSessions('move'));
+  hints.append(moveButton);
   el('preview-index').textContent = index >= 0 ? `${index + 1} / ${choices.length}` : '—';
   // Only scroll the list: scrollIntoView can also move the whole page when
   // navigating a long list near the bottom of the viewport.
@@ -282,7 +474,7 @@ function updateSelection(): void {
 
 function updateQueryAction(): void {
   const action = queryAction(input.value);
-  el('query-action').hidden = !action;
+  el('query-action').hidden = Boolean(sessionMode) || !action;
   const button = el<HTMLButtonElement>('query-action-button');
   button.disabled = busy || !action || action.kind === 'invalid';
   const label = !action ? '' : action.kind === 'address' ? `Open ${new URL(action.url).host}` : action.kind === 'search' ? 'Search the web' : 'Check the address';
@@ -395,6 +587,13 @@ function move(delta: number): void {
 
 async function execute(action: Action): Promise<void> {
   if (busy) return;
+  if (action === 'switchSession') { if (sessionMode) leaveSessions(); else openSessions('switch'); return; }
+  if (action === 'moveSession') { if (!sessionMode) openSessions('move'); return; }
+  if (sessionMode) {
+    if (action === 'cancel' || action === 'normal') { leaveSessions(); return; }
+    if (action === 'accept') { await acceptSession(); return; }
+    if (!['next', 'previous', 'first', 'last', 'help', 'insert'].includes(action)) return;
+  }
   if (action === 'launchQuery') {
     const plan = queryAction(input.value);
     if (!plan) return;
@@ -462,6 +661,7 @@ function showHelp(): void {
 }
 
 function fillSettings(value: Settings): void {
+  el<HTMLInputElement>('session-auto').checked = snapshot.workSessions?.autoAssign !== false;
   el<HTMLInputElement>('history-suggestions').checked = value.historySuggestions;
   el<HTMLInputElement>('history-suggestions').disabled = snapshot.private;
   el('settings-form').dataset.layout = value.layout;
@@ -499,7 +699,8 @@ input.addEventListener('input', () => {
   render();
 });
 document.addEventListener('keydown', event => {
-  if (event.isComposing || event.key === 'Process' || helpDialog.open || settingsDialog.open) return;
+  if (event.isComposing || event.key === 'Process' || helpDialog.open || settingsDialog.open || sessionNameDialog.open) return;
+  if (sessionMode && event.key === 'Escape') { event.preventDefault(); leaveSessions(); return; }
   const target = event.target as HTMLElement;
   if (target !== input && target.closest('button, select, textarea, a')) return;
   const resolved = resolver.resolve(eventKey(event), mode, settings.keymap);
@@ -511,7 +712,7 @@ document.addEventListener('keydown', event => {
 resultsNode.addEventListener('click', event => {
   const row = (event.target as HTMLElement).closest<HTMLElement>('.result');
   if (!row) return;
-  selectedId = row.dataset.history ? row.dataset.key : Number(row.dataset.id);
+  selectedId = row.dataset.history || sessionMode ? row.dataset.key : Number(row.dataset.id);
   updateSelection();
   void execute('accept');
 });
@@ -520,6 +721,7 @@ el('scope-window').addEventListener('click', () => { scope = 'window'; render();
 el('filter-all').addEventListener('click', () => { setTabFilter('all'); input.focus({ preventScroll: true }); });
 el('filter-pinned').addEventListener('click', () => { setTabFilter('pinned'); input.focus({ preventScroll: true }); });
 el('help-button').addEventListener('click', showHelp);
+el('sessions-button').addEventListener('click', () => { if (sessionMode) leaveSessions(); else openSessions('switch'); });
 el('query-action-button').addEventListener('click', () => void execute('launchQuery'));
 el('layout-button').addEventListener('click', () => void toggleView('layout'));
 el('preview-button').addEventListener('click', () => void toggleView('showPreview'));
@@ -543,7 +745,7 @@ el('shortcut-settings').addEventListener('click', () => {
   if (extension) void browser.commands.openShortcutSettings().catch(() => { el('settings-error').textContent = 'Open about:addons → gear menu → Manage Extension Shortcuts.'; });
   else el('settings-error').textContent = 'Available when loaded as a Firefox extension.';
 });
-for (const dialog of [helpDialog, settingsDialog]) {
+for (const dialog of [helpDialog, settingsDialog, sessionNameDialog]) {
   dialog.querySelector('.dialog-close')!.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => input.focus());
 }
@@ -557,7 +759,9 @@ el('settings-form').addEventListener('submit', async event => {
     if (historySuggestions && extension && !await browser.permissions.contains({ permissions: ['history'] })) {
       throw new Error('Enable history permission by switching Suggest visited sites off and on.');
     }
-    const next = readSettings({ ...settings, historySuggestions, layout: el('settings-form').dataset.layout, showPreview: el('settings-form').dataset.preview !== 'false', keymapVersion: 3, theme: el<HTMLSelectElement>('theme').value, scope: el<HTMLSelectElement>('default-scope').value, keymap });
+    const next = readSettings({ ...settings, historySuggestions, layout: el('settings-form').dataset.layout, showPreview: el('settings-form').dataset.preview !== 'false', keymapVersion: 4, theme: el<HTMLSelectElement>('theme').value, scope: el<HTMLSelectElement>('default-scope').value, keymap });
+    const updated = await request({ type: 'session-auto', enabled: el<HTMLInputElement>('session-auto').checked });
+    if (updated) snapshot = updated;
     if (extension) await browser.storage.local.set({ settings: next });
     else localStorage.setItem('telescope-settings', JSON.stringify(next));
     settings = next;
@@ -583,9 +787,9 @@ if (extension) {
     if (changes.tabFilter) { tabFilter = readTabFilter(changes.tabFilter.newValue); render(); }
   });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) { input.value = ''; selectedId = undefined; marks.clear(); setMode('insert'); scheduleRefresh(); }
+    if (!document.hidden) { if (sessionMode) leaveSessions(); input.value = ''; selectedId = undefined; marks.clear(); setMode('insert'); scheduleRefresh(); }
   });
-  window.addEventListener('focus', () => { scheduleRefresh(); if (!helpDialog.open && !settingsDialog.open) input.focus(); });
+  window.addEventListener('focus', () => { scheduleRefresh(); if (!helpDialog.open && !settingsDialog.open && !sessionNameDialog.open) input.focus(); });
 } else {
   el('environment-note').textContent = 'Preview with sample tabs · no browser access';
   snapshot = demoSnapshot();

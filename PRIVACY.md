@@ -46,8 +46,9 @@ inject content scripts into websites or download executable code.
 
 | Location | Contents | Lifetime |
 | --- | --- | --- |
-| `browser.storage.local` | Theme, compact/spacious layout, preview visibility, history-suggestion opt-in, default window scope, custom keybindings, and selected tab filter. | Retained between browser sessions until preferences or extension data are cleared. |
-| `browser.storage.session` | Picker/origin tab IDs, per-tab recency timestamps, and tracked picker/closed IDs. | Browser-session storage; may survive a background restart within that session. |
+| `browser.storage.local` | Theme, compact/spacious layout, preview visibility, history-suggestion opt-in, default window scope, custom keybindings, selected tab filter, normal session names/IDs and auto-add preference. | Retained between browser sessions until preferences or extension data are cleared. |
+| `browser.storage.session` | Picker/origin tab IDs, per-tab recency timestamps, tracked picker/closed IDs, and private session catalog, tab membership and per-window destinations. | Browser-session storage; private session data is cleared after the last private window closes. |
+| Browser session metadata (`browser.sessions`) | Each normal tab's list of session IDs and each normal window's selected session or All sessions. No URL archive is created. | Follows browser tab/window session restoration; deleting a session removes its ID while preserving other memberships. Legacy single-ID values remain readable. |
 | Extension memory and picker DOM | Tab metadata, current query, selected/marked results, bounded preview caches, and current history suggestions. The background retains up to five offered history URLs for up to 20 pickers to validate explicit opening. | Temporary application state, not intentionally written to persistent extension storage. |
 
 The extension does not maintain a persistent screenshot library or browsing-history
@@ -62,6 +63,8 @@ extension storage. The demo has no access to real browser tabs.
 - `tabs` exposes titles and URLs used for finding tabs and supplies tab-management
   functionality such as switching, closing, and pinning.
 - `storage` keeps preferences and session bookkeeping locally.
+- `sessions` attaches session membership and the chosen destination to normal
+  tabs/windows, allowing browser-restored tabs to retain their membership.
 - `search` runs only explicitly submitted web searches through the browser's
   search engine. It is not used for background suggestions as you type.
 - Optional `history` enables visited-page suggestions only after feature opt-in
@@ -81,7 +84,9 @@ that is distinct from the extension uploading data.
 The browser controls whether the extension is allowed in private windows.
 The implementation filters tab results and preview requests to avoid crossing
 between private and regular contexts. General preferences are extension-wide;
-private mode does not create a separate settings store.
+private mode does not create a separate general-settings store. Work sessions
+are separate: private names and membership are written only to temporary
+`storage.session`, never persistent local storage or browser session metadata.
 
 ## Diagnostics and support
 

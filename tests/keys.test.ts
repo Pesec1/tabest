@@ -68,7 +68,7 @@ test('legacy saved keymaps gain filter bindings without overwriting custom keys 
 });
 test('versioned maps may omit filter bindings or assign them elsewhere', () => {
   const keymap = { insert: {}, normal: { x: 'pinnedTabs' as const } };
-  assert.deepEqual(readSettings({ keymapVersion: 3, keymap }).keymap, keymap);
+  assert.deepEqual(readSettings({ keymapVersion: 4, keymap }).keymap, keymap);
   assert.equal(readSettings({ keymap }).keymap.normal.l, undefined);
   assert.equal(validateKeymap(keymap), true);
 });
@@ -102,9 +102,22 @@ test('Alt+Enter launches query in either mode while Enter keeps accepting result
 test('query binding migration respects custom keys, sequences, alternative bindings and deliberate removal', () => {
   const keymap = { insert: { 'Alt+Enter': 'help' }, normal: { 'Alt+Enterx': 'last' } };
   const upgraded = readSettings({ keymapVersion: 2, keymap });
-  assert.deepEqual(upgraded.keymap, keymap);
+  assert.deepEqual(upgraded.keymap.insert, keymap.insert);
+  assert.equal(upgraded.keymap.normal['Alt+Enterx'], 'last');
   assert.equal(upgraded.keymap.normal.h, undefined, 'Version 2 filter omissions must remain intentional');
   const alternate = { insert: { 'Ctrl+o': 'launchQuery' }, normal: {} };
   assert.equal(readSettings({ keymapVersion: 2, keymap: alternate }).keymap.insert['Alt+Enter'], undefined);
-  assert.deepEqual(readSettings({ keymapVersion: 3, keymap: { insert: {}, normal: {} } }).keymap, { insert: {}, normal: {} });
+  assert.deepEqual(readSettings({ keymapVersion: 4, keymap: { insert: {}, normal: {} } }).keymap, { insert: {}, normal: {} });
+});
+
+test('session bindings migrate without replacing prefixes, custom actions or deliberate omissions', () => {
+  const old = { insert: {}, normal: { ss: 'last', m: 'help' } };
+  const settings = readSettings({ keymapVersion: 3, keymap: old });
+  assert.equal(settings.keymapVersion, 4);
+  assert.deepEqual(settings.keymap, old);
+  const alternative = readSettings({ keymapVersion: 3, keymap: { insert: {}, normal: { x: 'switchSession' } } });
+  assert.equal(alternative.keymap.normal.s, undefined);
+  assert.equal(alternative.keymap.normal.m, 'moveSession');
+  assert.equal(readSettings({ keymapVersion: 3 }).keymap.normal.s, 'switchSession');
+  assert.equal(new KeyResolver().resolve('m', 'insert', defaultKeymap).handled, false);
 });

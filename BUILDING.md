@@ -38,6 +38,7 @@ npm run test:zen:filters
 npm run test:zen:ui
 npm run test:zen:suggestions
 npm run test:zen:query
+npm run test:zen:sessions
 ```
 
 Each command builds first, then runs a dedicated native-browser scenario.
@@ -61,6 +62,12 @@ profile using a browser-blocked loopback port. Native Alt+Enter presses verify
 both address opening and default-engine search, with Normal-mode, click,
 custom-binding, empty/invalid-input and narrow-layout checks. No real search
 provider is contacted. Screenshots are `query-wide.png` and `query-narrow.png`.
+
+The sessions scenario checks creation, bulk moves, rename, global search,
+native Ctrl+T followed by navigation, opener inheritance, browser tab restore,
+explicit launching with auto-add off, private selection rejection, reload
+persistence, deletion without closing tabs, and narrow layout. Screenshots are
+`sessions-wide.png` and `sessions-narrow.png` beside the report.
 
 The default binary is `/opt/zen-browser-bin/zen`. Override it when needed:
 

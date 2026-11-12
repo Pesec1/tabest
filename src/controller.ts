@@ -19,8 +19,12 @@ export class TabController {
   private pickerUrl: string;
   private api: Api;
   private closeTimeout: number;
-  constructor(api: Api, closeTimeout = 3000) {
+  private opened?: (tab: browser.tabs.Tab) => Promise<void>;
+  private accepted?: (tab: browser.tabs.Tab, callerWindowId: number) => Promise<void>;
+  constructor(api: Api, closeTimeout = 3000, opened?: (tab: browser.tabs.Tab) => Promise<void>, accepted?: (tab: browser.tabs.Tab, callerWindowId: number) => Promise<void>) {
     this.api = api; this.closeTimeout = closeTimeout; this.pickerUrl = api.runtime.getURL('picker.html');
+    this.opened = opened;
+    this.accepted = accepted;
   }
 
   private hasPickerUrl(tab: browser.tabs.Tab): boolean {
@@ -215,6 +219,7 @@ export class TabController {
     // Same-window selection needs no window activation. In Zen, refocusing
     // a window can also run its workspace/window synchronization handlers.
     if (tab.windowId !== callerWindowId) await this.api.windows.update(tab.windowId, { focused: true });
+    await this.accepted?.(tab, callerWindowId);
   }
 
   async openHistory(url: string, caller: browser.tabs.Tab): Promise<Snapshot> {
@@ -224,7 +229,10 @@ export class TabController {
     const snapshot = await this.snapshot(caller.windowId);
     const existing = snapshot.tabs.find(tab => historyUrl(tab.url) === historyUrl(url));
     if (existing) await this.focus(existing, caller.windowId);
-    else await this.api.tabs.create({ windowId: caller.windowId, url, active: true, openerTabId: caller.id });
+    else {
+      const tab = await this.api.tabs.create({ windowId: caller.windowId, url, active: true, openerTabId: caller.id });
+      await this.opened?.(tab);
+    }
     return this.snapshot(caller.windowId);
   }
 

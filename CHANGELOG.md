@@ -5,6 +5,31 @@ on Firefox Add-ons. The current package version is **0.2.4**.
 
 ## Unreleased
 
+### Local work sessions
+
+- Allow a browser tab to belong to multiple sessions. Selecting an existing tab
+  from a session's global search adds it to that session after successful focus,
+  retaining other memberships; All sessions leaves memberships unchanged.
+- Read legacy single-ID membership values alongside new arrays. Preserve other
+  memberships when deleting a session, inherit all source memberships for links,
+  show combined labels, and keep explicit moves as replacement operations.
+
+- Make All sessions the initial and persisted selection, including across picker
+  closure/reopening; remove the built-in Unsorted session. Existing Unsorted
+  membership becomes unassigned without affecting user-created sessions.
+
+- Add independent sessions with a compact chooser in the existing results list:
+  create empty sessions, move selected/marked tabs, rename, delete without closing
+  tabs, and open a new tab directly in the chosen session.
+- Search across sessions with result badges; retain window/pinned filters and
+  keep native tab visibility, order, pinning and browser groups unchanged.
+- Persist normal catalogs locally and membership via the `sessions` permission;
+  keep private catalogs and membership exclusively in temporary session storage.
+- Auto-assign new tabs to the window's chosen session and link children to their
+  source session; offer an opt-out and preserve explicit Tabest destinations.
+- Migrate keymaps to version 4 with Normal s/m, preserving custom bindings,
+  prefixes and deliberate removal. Add unit and isolated Zen session coverage.
+
 ### Open a typed address or web search
 
 - Add the local `launchQuery` action, suggested Alt+Enter in Insert and Normal,

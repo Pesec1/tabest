@@ -3,7 +3,7 @@
   "name": "Tabest — Fuzzy Tab Finder",
   "version": "0.2.4",
   "description": "Find, preview, and switch browser tabs with fuzzy search and customizable Vim-style keyboard navigation.",
-  "permissions": ["tabs", "storage", "search"],
+  "permissions": ["tabs", "storage", "search", "sessions"],
   "optional_permissions": ["history"],
   "host_permissions": ["<all_urls>"],
   "background": { "scripts": ["background.js"], "type": "module" },

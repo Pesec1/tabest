@@ -16,6 +16,7 @@
     "test:zen:ui": "npm run build && node scripts/zen-smoke.mjs --ui",
     "test:zen:suggestions": "npm run build && node scripts/zen-smoke.mjs --suggestions",
     "test:zen:query": "npm run build && node scripts/zen-smoke.mjs --query",
+    "test:zen:sessions": "npm run build && node scripts/zen-smoke.mjs --sessions",
     "lint:extension": "npx --yes web-ext lint --source-dir dist",
     "start": "npx --yes web-ext run --source-dir dist",
     "package": "npm run build && npx --yes web-ext build --source-dir dist --artifacts-dir artifacts --overwrite-dest"

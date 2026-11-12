@@ -31,6 +31,7 @@ be added after publication. Until then, use the development installation below.
 - Use a compact layout with more visible results, or switch to the spacious view.
 - Recognize tabs by their site icons and see keyboard hints for the current selection.
 - Optionally suggest visited pages when few open tabs match your query.
+- Organize tabs into local sessions, with automatic assignment and global search.
 
 Tabs are ranked by match quality and recency. Pinned tabs do not receive a hidden
 ranking boost: use the Pinned filter when you want to search only among them.
@@ -82,6 +83,8 @@ another extension, or an operating-system shortcut.
 | Pin / unpin selected tab | — | p |
 | Show all / pinned tabs | — | h / l |
 | Toggle all windows / current window | — | w |
+| Choose / create a session | — | s |
+| Move marked tabs, or selected tab, to a session | — | m |
 | First / last result | — | gg / G, Home / End |
 | Show keybindings | Ctrl+/ | ? |
 
@@ -96,6 +99,44 @@ The hints below the results reflect your active mode, marked tabs, and custom
 keybindings. In Insert mode, Escape reveals the Normal-mode management actions.
 Site icons come from browser-provided favicon addresses; unavailable icons fall
 back to a domain initial. The screenshots above show the spacious layout.
+
+## Sessions
+
+Use the session button next to the search label, or press **s** in Normal mode.
+The existing result list becomes a session chooser. Type a name and choose
+**Create** to create an empty session. Choose a session to browse its tabs and
+make it the destination for new tabs in this window. **All sessions** is the
+initial selection: it shows every tab, including tabs without a session. Your
+last selection, including All sessions, is restored when you reopen the picker.
+
+Type in the ordinary tab search to search across all sessions; results show
+their session names. Selecting a result while a user-created session is active
+adds that same browser tab to the current session, keeping all previous sessions.
+There is no duplicate tab; All sessions shows each browser tab once. Selecting
+from All sessions does not change membership. Window and pinned filters still apply. Mark tabs with Tab,
+then choose **Move to session…** or press **m** in Normal mode. The chooser can
+move tabs into an existing session or create one from your selection. Rename and
+Delete controls appear beside sessions; deleting a session removes only that
+membership and keeps its tabs open in any other sessions and **All sessions**.
+An explicit move replaces the selected tabs' existing memberships; choosing
+All sessions in the move chooser removes all their session assignments.
+Closing a tab closes the actual browser tab in every session. Escape leaves the chooser and
+restores your previous search. There is no built-in Unsorted session.
+
+New tabs automatically join the current session; links opened in new tabs inherit
+all their source tab's sessions. Disable automatic assignment in Settings to send
+ordinary new tabs to the general list without an assignment. Selecting All
+sessions also stops assigning ordinary new tabs to the previously chosen session;
+links still inherit their source sessions. Explicit Alt+Enter/history opening and
+the first-tab button in an empty session still use the chosen session. Selecting
+an existing tab does not change the current session destination.
+
+Sessions are local to Tabest: they do not hide, reorder, group, or pin browser
+tabs. Normal sessions can contain tabs from multiple windows; each window keeps
+its own destination. Empty sessions persist. Membership is attached to tabs using
+the browser's session metadata and can follow browser-restored tabs; Tabest does
+not reopen URLs or archive closed tabs. Private sessions use a separate temporary
+catalog that is cleared after the last private window closes.
 
 ## Open an address or search the web
 

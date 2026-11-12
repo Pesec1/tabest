@@ -72,6 +72,20 @@ test('private launches stay private and invalid/empty input creates no tabs', as
   assert.equal(f.tabs[0].incognito, true); assert.equal(f.searches[0].tabId, f.tabs[0].id);
 });
 
+test('explicit destinations are assigned before browser search and retained for address opening', async () => {
+  const f = fixture();
+  const assigned: number[] = [];
+  const launcher = new QueryLauncher(f.api, async tab => { assigned.push(tab.id!); });
+  await launcher.launch('example.com', f.caller);
+  assert.deepEqual(assigned, [f.tabs[0].id]);
+  f.api.search.search = async ({ tabId }) => {
+    assert.ok(assigned.includes(tabId), 'Session assignment must finish before search navigation');
+    assert.equal(f.tabs.find(tab => tab.id === tabId)?.active, false);
+  };
+  await launcher.launch('search text', f.caller);
+  assert.deepEqual(assigned, f.tabs.map(tab => tab.id));
+});
+
 test('failed search removes only an untouched inactive blank tab', async () => {
   const f = fixture();
   f.api.search.search = async () => { throw new Error('No search engine'); };

@@ -35,6 +35,16 @@ Node 26.2.0, and npm 11.16.0; it is not yet a certified cross-platform release b
   engine. Typing remains local; HTTP(S) address opening and native search create
   a tab in the caller's window. No provider is hardcoded.
 - `storage.local` keeps preferences; `storage.session` keeps tab IDs and recency.
+- `sessions` attaches normal work-session membership to tabs and the chosen
+  destination to windows for browser-managed restoration. Catalog names/IDs and
+  auto-add preference use local storage. Private catalogs, membership and chosen
+  destinations use only temporary session storage, cleared after the last private
+  window closes. Session operations do not hide, move, group or pin native tabs.
+  Tab membership is a list of session IDs (older single strings are accepted).
+  Selecting a tab from a named session adds that membership after successful
+  activation, including reused history targets. All sessions leaves membership
+  unchanged; deleting one session preserves all others. Explicit Move replaces
+  memberships, and browser-tab closure closes the shared tab everywhere.
 - Optional `history` is requested from the Suggest visited sites checkbox in
   Settings. Reads require opt-in plus permission, use the browser's index, and
   are disabled in private windows. Suggested URLs are opened only on selection;
@@ -75,6 +85,15 @@ Use a disposable profile and synthetic pages, not a real browsing session.
     Verify a new tab opens in the same window, the default browser engine is used
     for text, and ordinary Enter still selects existing results. Check the action
     in both modes, empty results, and with a custom binding.
+
+12. Open the session chooser with its button or Normal s. Create an empty session,
+    mark tabs and move them with Normal m, rename it, search globally, and delete
+    it while verifying its tabs stay open in All sessions without an assignment.
+    Choose All sessions, reload and close/reopen the picker, and verify the
+    selection and complete tab list persist. No built-in Unsorted row should appear.
+    Test Ctrl+T, opener
+    inheritance, auto-add off, explicit Alt+Enter, browser undo-close, picker
+    reload, and separation between private/normal catalogs.
 
 ## Evidence to attach to the actual submission
 

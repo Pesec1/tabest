@@ -109,6 +109,13 @@ make it the destination for new tabs in this window. **All sessions** is the
 initial selection: it shows every tab, including tabs without a session. Your
 last selection, including All sessions, is restored when you reopen the picker.
 
+The session selector sits on the left above the input, counts sit beside Results,
+and the keyboard mode appears once in the bottom status bar. Opening, selecting
+or cancelling the session chooser keeps your current mode. In Normal, use j/k
+and Enter; press i or / explicitly to search or name a session. If you switch to
+Insert, that mode stays active when you return to tabs. Escape returns to your
+previous tab query without changing modes. These keys respect your custom keymap.
+
 Type in the ordinary tab search to search across all sessions; results show
 their session names. Selecting a result while a user-created session is active
 adds that same browser tab to the current session, keeping all previous sessions.

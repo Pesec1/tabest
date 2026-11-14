@@ -5,6 +5,15 @@ on Firefox Add-ons. The current package version is **0.2.4**.
 
 ## Unreleased
 
+### Session controls and settings
+
+- Keep keyboard mode unchanged when opening and leaving the session chooser;
+  retain explicit mode changes and show mode-aware navigation/search hints.
+- Place the session selector on the left above search, counts with results,
+  and a single mode indicator in the bottom status bar.
+- Style automatic session assignment and visited-site suggestions as matching
+  accessible switches with grouped descriptions and theme-aware focus states.
+
 ### Local work sessions
 
 - Allow a browser tab to belong to multiple sessions. Selecting an existing tab

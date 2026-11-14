@@ -47,8 +47,9 @@ creates a separate profile, and uses local fixtures. It does not use a user's
 existing browser profile or modify the installed browser.
 
 The UI scenario checks compact/spacious layout, preview visibility and persistence,
-browser favicons, custom keyboard hints, and a narrow viewport. It also saves
-`ui-wide.png` and `ui-narrow.png` beside its temporary `result.json` report.
+browser favicons, custom keyboard hints, the session/count/status layout, matching
+settings switches and auto-add persistence, and a narrow viewport. It also saves
+`ui-wide.png` and `ui-narrow.png` showing Settings beside its temporary `result.json` report.
 
 The suggestions scenario seeds synthetic history in its fresh profile, grants
 the optional permission only in that profile, and checks ranking, permission

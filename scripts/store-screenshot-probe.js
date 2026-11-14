@@ -35,7 +35,7 @@ try {
   key('Tab');
   key('Tab');
   if (document.querySelectorAll('.result.marked').length !== 2) throw new Error('Tabs were not marked');
-  if (document.getElementById('mode-indicator').textContent !== 'NORMAL') throw new Error('Normal mode missing');
+  if (document.getElementById('status-mode').textContent !== 'NORMAL') throw new Error('Normal mode missing');
   await ready('pinned');
   document.title = 'Tabest [capture-done]';
 } catch (error) { document.title = `Tabest [capture-failed: ${error.message}]`; }

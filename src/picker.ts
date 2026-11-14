@@ -23,8 +23,12 @@ app.innerHTML = `
     <div class="intro"><div><p class="eyebrow">YOUR BROWSER, WITHIN REACH</p><h1>A little less searching.<br><span>A little more flow.</span></h1></div><span class="session-label"><span class="live-dot"></span> LOCAL SESSION</span></div>
     <section class="workspace" aria-label="Tab picker">
       <div class="search-column">
-        <div class="panel prompt-panel"><div class="panel-label"><label for="query">Find a tab</label><span id="query-count"></span></div><div class="prompt-line"><span class="prompt-symbol" aria-hidden="true">❯</span><input id="query" type="text" placeholder="Search titles and URLs…" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="results" /><kbd id="mode-indicator">INSERT</kbd></div></div>
-        <div class="panel results-panel"><div class="panel-label results-heading"><span>Results <span id="result-count" class="count"></span></span><div class="result-filters"><div class="scope-control" role="group" aria-label="Search scope"><button id="scope-all">All windows</button><button id="scope-window">This window</button></div><div class="scope-control tab-filter" role="group" aria-label="Tab filter"><button id="filter-all">All tabs <kbd class="filter-key"></kbd></button><button id="filter-pinned">Pinned <kbd class="filter-key"></kbd></button></div></div></div><div id="results" role="listbox" aria-label="Open tabs" aria-multiselectable="true"></div><div class="results-bottom"><span id="selection-count">No tabs marked</span><div id="action-hints" aria-label="Available keyboard actions"></div></div></div>
+        <div class="panel prompt-panel">
+          <div class="panel-label prompt-context"><div class="session-context"><span id="picker-context-label" class="prompt-caption">Session</span><button id="sessions-button" class="session-switch" type="button" aria-expanded="false" aria-controls="results">All sessions ▾</button></div><span id="search-scope" class="search-scope" hidden>Across all sessions</span></div>
+          <label for="query" class="sr-only">Find a tab</label>
+          <div class="prompt-line"><span class="prompt-symbol" aria-hidden="true">❯</span><input id="query" type="text" placeholder="Search titles and URLs…" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="results" /></div>
+        </div>
+        <div class="panel results-panel"><div class="panel-label results-heading"><div class="results-summary"><span>Results <span id="result-count" class="count"></span></span><span id="query-count" class="query-count"></span></div><div class="result-filters"><div class="scope-control" role="group" aria-label="Search scope"><button id="scope-all">All windows</button><button id="scope-window">This window</button></div><div class="scope-control tab-filter" role="group" aria-label="Tab filter"><button id="filter-all">All tabs <kbd class="filter-key"></kbd></button><button id="filter-pinned">Pinned <kbd class="filter-key"></kbd></button></div></div></div><div id="results" role="listbox" aria-label="Open tabs" aria-multiselectable="true"></div><div class="results-bottom"><span id="selection-count">No tabs marked</span><div id="action-hints" aria-label="Available keyboard actions"></div></div></div>
       </div>
       <aside class="panel preview-panel" aria-label="Selected tab preview"><div class="panel-label"><span>Preview</span><span id="preview-index"></span></div><div id="preview"></div></aside>
     </section>
@@ -36,15 +40,10 @@ app.innerHTML = `
 `;
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T { return document.getElementById(id) as T; }
-el('query').closest('.prompt-panel')!.querySelector('label')!.insertAdjacentHTML('afterend', `
-  <button id="sessions-button" class="session-switch" type="button" aria-expanded="false" aria-controls="results">Sessions ▾</button>
-`);
 app.insertAdjacentHTML('beforeend', `<dialog id="session-name-dialog"><form id="session-name-form"><div class="dialog-heading"><h2>Rename session</h2><button type="button" class="dialog-close quiet" aria-label="Cancel rename">✕</button></div><label for="session-name">Session name</label><input id="session-name" maxlength="80" required autocomplete="off" /><p id="session-name-error" class="error" role="alert"></p><div class="dialog-actions"><button type="submit" class="primary">Save name</button></div></form></dialog>`);
 el('settings-form').insertAdjacentHTML('afterbegin', `
-  <div class="settings-row"><label for="session-auto">Add new tabs to sessions automatically</label><input id="session-auto" type="checkbox" /></div>
-  <p class="muted">New tabs join the current session; links opened in new tabs inherit the source session. Existing tabs stay where you put them. Private sessions are temporary and separate.</p>
-  <div class="settings-row"><label for="history-suggestions">Suggest visited sites</label><input id="history-suggestions" type="checkbox" /></div>
-  <p class="muted">When fewer than 5 open tabs match, suggest up to 5 visited pages. Uses local browsing history with your permission; unavailable in private windows.</p>
+  <div class="settings-row settings-toggle"><div class="setting-copy"><label for="session-auto">Add new tabs to sessions automatically</label><p id="session-auto-description" class="muted">New tabs join the current session; links inherit their source sessions. Private sessions are temporary and separate.</p></div><input id="session-auto" type="checkbox" role="switch" aria-describedby="session-auto-description" /></div>
+  <div class="settings-row settings-toggle"><div class="setting-copy"><label for="history-suggestions">Suggest visited sites</label><p id="history-suggestions-description" class="muted">Suggest visited pages when fewer than 5 open tabs match. Requires history permission; unavailable in private windows.</p></div><input id="history-suggestions" type="checkbox" role="switch" aria-describedby="history-suggestions-description" /></div>
 `);
 el('query').closest('.prompt-panel')!.insertAdjacentHTML('beforeend', `
   <div id="query-action" class="query-action" hidden><button id="query-action-button" type="button"><span id="query-action-label"></span><kbd id="query-action-key"></kbd></button></div>
@@ -61,7 +60,7 @@ let results: SearchResult[] = [];
 let choices: { id: number | string; tab?: SearchResult; history?: HistorySuggestion; session?: WorkSession; create?: string; allSessions?: boolean }[] = [];
 let sessionMode: 'switch' | 'move' | undefined;
 let sessionMoveIds: number[] = [];
-let savedSearch = { query: '', selectedId: undefined as number | string | undefined, mode: 'insert' as Mode };
+let savedSearch = { query: '', selectedId: undefined as number | string | undefined };
 let selectedId: number | string | undefined;
 let marks = new Set<number>();
 let mode: Mode = 'insert';
@@ -195,21 +194,24 @@ function openSessions(next: 'switch' | 'move'): void {
   if (busy) return;
   sessionMoveIds = next === 'move' ? (marks.size ? [...marks] : typeof selectedId === 'number' ? [selectedId] : []) : [];
   if (next === 'move' && !sessionMoveIds.length) { message('Select or mark an open tab first.'); return; }
-  savedSearch = { query: input.value, selectedId, mode };
+  savedSearch = { query: input.value, selectedId };
   sessionMode = next;
   input.value = '';
   const activeId = snapshot.workSessions?.activeSessionId ?? ALL_SESSIONS;
   selectedId = activeId === ALL_SESSIONS ? 'all-sessions' : `session:${activeId}`;
   historySearch.reset();
-  render(); setMode('insert');
-  message(next === 'move' ? 'Choose a destination, or type a name to create a session.' : 'Choose a session, or type a name to create one.');
+  resolver.reset();
+  render(); input.focus({ preventScroll: true });
+  message(next === 'move' ? 'Choose a destination session.' : 'Choose a session.');
 }
 
 function leaveSessions(): void {
   sessionMode = undefined;
   input.value = savedSearch.query;
   selectedId = savedSearch.selectedId;
-  render(); setMode(savedSearch.mode);
+  resolver.reset();
+  render(); input.focus({ preventScroll: true });
+  message(mode === 'normal' ? 'Choose a tab, or enter Insert to search.' : 'Search across all sessions.');
 }
 
 async function sessionAction(payload: Request): Promise<void> {
@@ -226,7 +228,7 @@ async function sessionAction(payload: Request): Promise<void> {
 async function acceptSession(): Promise<void> {
   const choice = choices.find(choice => choice.id === selectedId);
   if (!choice) return;
-  if (choice.create === '') { input.focus(); message('Type a name, then choose Create session.'); return; }
+  if (choice.create === '') { input.focus(); message(mode === 'normal' ? 'Enter Insert to name a new session.' : 'Type a name, then choose Create session.'); return; }
   try {
     if (choice.allSessions) {
       await sessionAction(sessionMode === 'move' ? { type: 'session-move', sessionId: ALL_SESSIONS, ids: sessionMoveIds } : { type: 'session-switch', sessionId: ALL_SESSIONS });
@@ -242,7 +244,7 @@ async function acceptSession(): Promise<void> {
     const moved = sessionMode === 'move';
     if (moved) marks.clear();
     leaveSessions();
-    message(moved ? (choice.allSessions ? 'Session assignment removed. Tabs stay open in All sessions.' : 'Tabs moved to the session.') : choice.allSessions ? 'All sessions selected.' : 'Session selected. Type to search across all sessions.');
+    message(moved ? (choice.allSessions ? 'Session assignment removed. Tabs stay open in All sessions.' : 'Tabs moved to the session.') : `${choice.allSessions ? 'All sessions selected.' : 'Session selected.'} ${mode === 'normal' ? 'Enter Insert to search.' : 'Type to search across all sessions.'}`);
   } catch { /* Keep the chooser and selection available for retry. */ }
 }
 
@@ -319,6 +321,8 @@ function render(): void {
   el('sessions-button').textContent = `${current?.name ?? 'All sessions'} ▾`;
   el('sessions-button').title = `${current ? `New tabs → ${current.name}` : 'All open tabs. New tabs have no session assignment'}${state?.autoAssign === false ? ' (auto-add off)' : ''}. Choose or create a session.`;
   el('sessions-button').setAttribute('aria-expanded', String(Boolean(sessionMode)));
+  el('picker-context-label').textContent = sessionMode === 'move' ? 'Move to' : 'Session';
+  el('search-scope').hidden = Boolean(sessionMode) || !input.value.trim();
   el('query').closest('.prompt-panel')!.querySelector('label')!.textContent = sessionMode ? (sessionMode === 'move' ? `Move ${sessionMoveIds.length} tab(s) to` : 'Choose a session') : input.value.trim() ? 'Find a tab · all sessions' : sessionBrowse ? `Tabs · ${state?.sessions.find(session => session.id === sessionBrowse)?.name}` : 'Find a tab · all sessions';
   input.placeholder = sessionMode ? 'Find a session or type a new name…' : 'Search titles and URLs across sessions…';
   document.documentElement.dataset.sessionPicker = String(Boolean(sessionMode));
@@ -433,7 +437,12 @@ function updateSelection(): void {
   if (sessionMode) {
     el('selection-count').textContent = sessionMode === 'move' ? `${sessionMoveIds.length} tab(s) to move` : 'Choose where new tabs go';
     const binding = (action: Action) => Object.entries(settings.keymap[mode]).find(([, value]) => value === action)?.[0];
-    el('action-hints').replaceChildren(node('span', 'action-hint', `${binding('previous') ?? ''} / ${binding('next') ?? ''} Choose · ${binding('accept') ?? 'Click'} Confirm · Esc Back`));
+    const hints = el('action-hints');
+    hints.replaceChildren();
+    for (const [key, label] of [[[binding('previous'), binding('next')].filter(Boolean).join(' / '), 'Choose'], [binding('accept'), 'Confirm'], ...(mode === 'normal' ? [[binding('insert'), 'Search']] : []), ['Esc', 'Back']]) {
+      if (!key || !label) continue;
+      const hint = node('span', 'action-hint'); hint.append(node('kbd', '', key), document.createTextNode(label)); hints.append(hint);
+    }
     el('preview-index').textContent = index >= 0 ? `${index + 1} / ${choices.length}` : '—';
     renderSessionPreview(choice?.session);
     if (activeRow) {
@@ -569,13 +578,12 @@ function setMode(next: Mode): void {
   mode = next;
   resolver.reset();
   input.readOnly = mode === 'normal';
-  el('mode-indicator').textContent = mode.toUpperCase();
   el('status-mode').textContent = mode.toUpperCase();
   document.documentElement.dataset.mode = mode;
   renderFilterHints();
   updateSelection();
   input.focus({ preventScroll: true });
-  message(mode === 'normal' ? 'j / k to navigate · i to type · Esc to return' : 'Start typing to find your next tab.');
+  message(sessionMode ? (mode === 'normal' ? 'Choose a session. Enter Insert to search or create one.' : 'Find a session or type a new name. Escape returns to tabs.') : mode === 'normal' ? 'j / k to navigate · i to type · Esc to return' : 'Start typing to find your next tab.');
 }
 
 function move(delta: number): void {
@@ -590,9 +598,9 @@ async function execute(action: Action): Promise<void> {
   if (action === 'switchSession') { if (sessionMode) leaveSessions(); else openSessions('switch'); return; }
   if (action === 'moveSession') { if (!sessionMode) openSessions('move'); return; }
   if (sessionMode) {
-    if (action === 'cancel' || action === 'normal') { leaveSessions(); return; }
+    if (action === 'cancel') { leaveSessions(); return; }
     if (action === 'accept') { await acceptSession(); return; }
-    if (!['next', 'previous', 'first', 'last', 'help', 'insert'].includes(action)) return;
+    if (!['next', 'previous', 'first', 'last', 'help', 'insert', 'normal'].includes(action)) return;
   }
   if (action === 'launchQuery') {
     const plan = queryAction(input.value);

@@ -15,6 +15,18 @@ function search(text) {
   if (query.readOnly) key('i');
   query.value = text; query.dispatchEvent(new Event('input', { bubbles: true }));
 }
+function checkSettings() {
+  const toggle = el('session-auto'); const history = el('history-suggestions');
+  for (const control of [toggle, history]) {
+    const box = control.getBoundingClientRect();
+    assert(box.width === 34 && box.height === 20, `Toggle inherited full-width text input styling: ${control.id} ${box.width}×${box.height}; CSS ${getComputedStyle(control).width} / ${getComputedStyle(control).boxSizing}`);
+    assert(control.getAttribute('role') === 'switch', 'Toggle has no accessible switch role');
+    assert(document.getElementById(control.getAttribute('aria-describedby')), 'Toggle description is not linked');
+  }
+  assert(toggle.getBoundingClientRect().left === history.getBoundingClientRect().left, 'Settings toggles do not align');
+  assert(getComputedStyle(document.querySelector('label[for="session-auto"]')).fontSize === getComputedStyle(document.querySelector('label[for="theme"]')).fontSize, 'Session setting typography differs');
+  assert(el('settings-dialog').scrollWidth <= el('settings-dialog').clientWidth + 1, 'Settings overflow horizontally');
+}
 try {
   await until(() => document.querySelector('.result'), 'No results');
   const reloaded = (await browser.storage.session.get('uiReloaded')).uiReloaded;
@@ -27,6 +39,11 @@ try {
     const compactRowHeight = document.querySelector('.result').getBoundingClientRect().height;
     const compactListHeight = el('results').getBoundingClientRect().height;
     assert(compactTop < 120, 'Compact search is too far down');
+    assert(el('sessions-button').closest('.session-context'), 'Session selection must have its own context row');
+    assert(el('sessions-button').getBoundingClientRect().left < query.getBoundingClientRect().left + 80, 'Session selector is pushed to the right');
+    assert(el('query-count').closest('.results-heading'), 'Tab count belongs with results');
+    assert(!el('mode-indicator') && el('status-mode').closest('.statusbar'), 'Mode should appear only in the status bar');
+    assert(!el('search-scope').hidden, 'Global search scope is not visible');
     await until(() => document.querySelector('.result.selected .tab-icon img')?.naturalWidth > 0 &&
       document.querySelector('.preview-icon img')?.naturalWidth > 0, 'Browser favicon missing from row or preview');
     assert(document.querySelector('.tab-icon img').referrerPolicy === 'no-referrer', 'Favicon must omit referrer');
@@ -53,6 +70,13 @@ try {
     search('no-such-tab-unique-query');
     assert(!hints().includes('Switch') && !hints().includes('Pin tab'), 'Empty results advertise unavailable tab actions');
     assert(hints().includes('Manage marked tabs'), 'Hidden marked selection is undisclosed');
+    key('Escape');
+    el('settings-button').click(); checkSettings();
+    assert(el('session-auto').checked, 'Auto-add should start enabled');
+    el('session-auto').click(); el('settings-form').requestSubmit();
+    await until(() => !el('settings-dialog').open, 'Settings did not save');
+    assert(root.dataset.mode === 'normal', 'Settings save changed keyboard mode');
+    assert((await browser.storage.local.get('workSessions')).workSessions.autoAssign === false, 'Auto-add setting was not persisted');
     await browser.storage.session.set({ uiReloaded: true });
     location.reload();
   } else {
@@ -77,12 +101,18 @@ try {
     el('preview-button').click();
     await until(() => root.dataset.preview === 'true', 'Preview could not be restored');
     await until(() => document.querySelector('.preview-icon img')?.naturalWidth > 0, 'Restored preview icon missing');
+    el('settings-button').click(); checkSettings();
+    assert(!el('session-auto').checked, 'Auto-add setting did not survive reload');
+    el('session-auto').click(); el('settings-form').requestSubmit();
+    await until(() => !el('settings-dialog').open, 'Auto-add could not be restored');
+    el('settings-button').click(); checkSettings();
     document.title = 'Tabest [ui-wide-ok]';
     await until(() => innerWidth <= 680, 'Window did not resize to narrow viewport');
     assert(root.scrollWidth <= root.clientWidth + 1, 'Horizontal page overflow at narrow viewport');
     assert(getComputedStyle(document.querySelector('.preview-panel')).display === 'none', 'Preview visible on narrow screen');
     assert(el('results').clientHeight > 150, 'Narrow screen has insufficient results space');
     assert(document.querySelector('.statusbar').getBoundingClientRect().bottom <= innerHeight + 1, 'Status bar falls below viewport');
+    checkSettings();
     document.title = 'Tabest [ui-ok]';
   }
 } catch (error) { document.title = 'Tabest [ui-failed: ' + error.message + ']'; }
